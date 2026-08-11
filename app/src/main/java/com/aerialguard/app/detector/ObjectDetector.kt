@@ -1,4 +1,4 @@
-package com.aerialguard.app.detector
+——package com.aerialguard.app.detector
 
 import android.content.Context
 import android.graphics.Bitmap
