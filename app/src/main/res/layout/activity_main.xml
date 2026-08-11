@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:orientation="vertical"
+      android:gravity="center"
+      android:padding="32dp"
+      android:background="#101418">
+
+      <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AerialGuard"
+                android:textColor="#FFFFFF"
+                android:textSize="30sp"
+                android:textStyle="bold" />
+
+      <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:text="Real-time human / vehicle / aircraft / quadcopter overlay for your drone feed"
+                android:textColor="#AAAAAA"
+                android:textSize="14sp" />
+
+      <Button
+                android:id="@+id/startButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="40dp"
+                android:paddingLeft="24dp"
+                android:paddingRight="24dp"
+                android:text="Start Detection" />
+
+      <Button
+                android:id="@+id/stopButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:paddingLeft="24dp"
+                android:paddingRight="24dp"
+                android:text="Stop Detection" />
+
+      <TextView
+                android:id="@+id/statusText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:gravity="center"
+                android:text="Tap Start, grant the two permissions, then switch to your drone app."
+                android:textColor="#66FF99"
+                android:textSize="13sp" />
+
+      <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="40dp"
+                android:gravity="center"
+                android:text="Red = person   Yellow = vehicle   Cyan = aircraft   Magenta = possible quadcopter (heuristic)"
+                android:textColor="#666666"
+                android:textSize="11sp" />
+
+</LinearLayout>
