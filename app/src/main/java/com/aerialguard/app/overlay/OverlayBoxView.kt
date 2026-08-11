@@ -17,55 +17,53 @@ import com.aerialguard.app.detector.ThreatCategory
      */
 class OverlayBoxView(context: Context) : View(context) {
 
-      @Volatile private var detections: List<Detection> = emptyList()
-          @Volatile private var sourceWidth: Int = 1
-      @Volatile private var sourceHeight: Int = 1
+     @Volatile private var detections: List<Detection> = emptyList()
+         @Volatile private var sourceWidth: Int = 1
+     @Volatile private var sourceHeight: Int = 1
 
-      private val boxPaint = Paint().apply {
-                style = Paint.Style.STROKE
-                strokeWidth = 5f
-                isAntiAlias = true
-      }
+     private val boxPaint = Paint().apply {
+              style = Paint.Style.STROKE
+              strokeWidth = 5f
+              isAntiAlias = true
+     }
 
-          private val textPaint = Paint().apply {
-                    color = Color.WHITE
-                    textSize = 34f
-                    isAntiAlias = true
-                    setShadowLayer(4f, 0f, 0f, Color.BLACK)
-          }
+         private val textPaint = Paint().apply {
+                  color = Color.WHITE
+                  textSize = 34f
+                  isAntiAlias = true
+                  setShadowLayer(4f, 0f, 0f, Color.BLACK)
+         }
 
-              private fun colorFor(category: ThreatCategory): Int = when (category) {
-                        ThreatCategory.HUMAN -> Color.rgb(255, 64, 64)
-                                ThreatCategory.VEHICLE -> Color.rgb(255, 210, 0)
-                                        ThreatCategory.AIRCRAFT -> Color.rgb(0, 220, 255)
-                                                ThreatCategory.QUADCOPTER_HEURISTIC -> Color.rgb(255, 0, 220)
-                                                        ThreatCategory.UNKNOWN -> Color.GRAY
-              }
+             private fun colorFor(category: ThreatCategory): Int = when (category) {
+                      ThreatCategory.HUMAN -> Color.rgb(255, 64, 64)
+                              ThreatCategory.VEHICLE -> Color.rgb(255, 210, 0)
+                                      ThreatCategory.UNKNOWN -> Color.GRAY
+             }
 
-                  override fun onDraw(canvas: Canvas) {
-                            super.onDraw(canvas)
-                                    if (sourceWidth <= 0 || sourceHeight <= 0) return
-                            val scaleX = width.toFloat() / sourceWidth
-                            val scaleY = height.toFloat() / sourceHeight
+                 override fun onDraw(canvas: Canvas) {
+                          super.onDraw(canvas)
+                                  if (sourceWidth <= 0 || sourceHeight <= 0) return
+                          val scaleX = width.toFloat() / sourceWidth
+                          val scaleY = height.toFloat() / sourceHeight
 
-                            for (detection in detections) {
-                                          boxPaint.color = colorFor(detection.category)
-                                                      val rect = RectF(
-                                                                        detection.box.left * scaleX,
-                                                                        detection.box.top * scaleY,
-                                                                        detection.box.right * scaleX,
-                                                                        detection.box.bottom * scaleY
-                                                                    )
-                                                                  canvas.drawRect(rect, boxPaint)
-                                                                              val label = "${detection.label} ${(detection.confidence * 100).toInt()}%"
-                                          canvas.drawText(label, rect.left + 4f, (rect.top - 8f).coerceAtLeast(20f), textPaint)
-                            }
-                  }
+                          for (detection in detections) {
+                                       boxPaint.color = colorFor(detection.category)
+                                                   val rect = RectF(
+                                                                    detection.box.left * scaleX,
+                                                                    detection.box.top * scaleY,
+                                                                    detection.box.right * scaleX,
+                                                                    detection.box.bottom * scaleY
+                                                                )
+                                                               canvas.drawRect(rect, boxPaint)
+                                                                           val label = "${detection.label} ${(detection.confidence * 100).toInt()}%"
+                                       canvas.drawText(label, rect.left + 4f, (rect.top - 8f).coerceAtLeast(20f), textPaint)
+                          }
+                 }
 
-                      fun updateDetections(newDetections: List<Detection>, srcWidth: Int, srcHeight: Int) {
-                                detections = newDetections
-                                sourceWidth = srcWidth
-                                sourceHeight = srcHeight
-                                postInvalidate()
-                      }
+                     fun updateDetections(newDetections: List<Detection>, srcWidth: Int, srcHeight: Int) {
+                              detections = newDetections
+                              sourceWidth = srcWidth
+                              sourceHeight = srcHeight
+                              postInvalidate()
+                     }
 }
