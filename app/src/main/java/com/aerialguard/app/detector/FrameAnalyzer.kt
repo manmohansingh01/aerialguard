@@ -3,16 +3,12 @@ package com.aerialguard.app.detector
 import android.graphics.Bitmap
 
 /**
- * Combines the trained COCO object detector (person/vehicle/aircraft) with
-  * the lightweight quadcopter motion heuristic into one call per frame.
-   */
+ * Thin wrapper around the trained COCO object detector (person/vehicle).
+  */
 class FrameAnalyzer(
-      private val objectDetector: ObjectDetector?,
-      private val quadcopterDetector: QuadcopterHeuristicDetector
+     private val objectDetector: ObjectDetector?
   ) {
-      fun analyze(bitmap: Bitmap): List<Detection> {
-                val objectDetections = objectDetector?.detect(bitmap) ?: emptyList()
-                        val quadcopterDetections = quadcopterDetector.detect(bitmap)
-                                return objectDetections + quadcopterDetections
-      }
+     fun analyze(bitmap: Bitmap): List<Detection> {
+              return objectDetector?.detect(bitmap) ?: emptyList()
+     }
 }
