@@ -1,0 +1,48 @@
+// Downloads Google's official, free, pretrained COCO SSD-MobileNet TFLite
+// model (~4MB, quantized) the first time you build the project, and unpacks
+// it straight into app/src/main/assets/. This is the exact same model used
+// by TensorFlow's own official "object detection" Android example, so it
+// already ships with a label map (labelmap.txt) that includes "person",
+// "car", "truck", "bus", "motorcycle", "bicycle", "airplane", etc.
+//
+// This download happens on YOUR machine when you open/build the project in
+// Android Studio (which has normal internet access) — it does not happen
+// anywhere else. If it ever fails (e.g. you're offline, or Google moves the
+// file), just download the zip yourself from the same URL below and unzip
+// detect.tflite + labelmap.txt into app/src/main/assets/ manually.
+
+def modelZipUrl = 'https://storage.googleapis.com/download.tensorflow.org/models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip'
+def assetsDir = new File(projectDir, 'src/main/assets')
+def modelFile = new File(assetsDir, 'detect.tflite')
+def labelFile = new File(assetsDir, 'labelmap.txt')
+def downloadedZip = new File(buildDir, 'model_download/coco_ssd_mobilenet.zip')
+
+tasks.register('downloadDetectionModel') {
+      doLast {
+                if (modelFile.exists() && labelFile.exists()) {
+                              println "AerialGuard: detection model already present, skipping download."
+                              return
+                }
+                println "AerialGuard: downloading pretrained detection model from ${modelZipUrl} ..."
+                downloadedZip.parentFile.mkdirs()
+                assetsDir.mkdirs()
+                try {
+                              new URL(modelZipUrl).withInputStream { input ->
+                                                downloadedZip.withOutputStream { output -> output << input }
+                              }
+                              copy {
+                                                from zipTree(downloadedZip)
+                                                into assetsDir
+                                                include 'detect.tflite', 'labelmap.txt'
+                              }
+                              println "AerialGuard: model ready at ${modelFile}"
+                } catch (Exception e) {
+                              println "AerialGuard: WARNING — could not download the model automatically (${e.message})."
+                              println "AerialGuard: download ${modelZipUrl} by hand and unzip detect.tflite + labelmap.txt into ${assetsDir}"
+                }
+      }
+}
+
+tasks.matching { it.name == 'preBuild' }.configureEach {
+      dependsOn 'downloadDetectionModel'
+}
