@@ -3,11 +3,9 @@ package com.aerialguard.app.detector
 import android.graphics.RectF
 
 enum class ThreatCategory {
-      HUMAN,
-      VEHICLE,
-      AIRCRAFT,
-      QUADCOPTER_HEURISTIC,
-      UNKNOWN
+          HUMAN,
+          VEHICLE,
+          UNKNOWN
 }
 
 /**
@@ -16,9 +14,9 @@ enum class ThreatCategory {
    * to the phone's actual screen size before drawing.
     */
     data class Detection(
-          val box: RectF,
-          val label: String,
-          val category: ThreatCategory,
-          val confidence: Float
-      )
+              val box: RectF,
+              val label: String,
+              val category: ThreatCategory,
+              val confidence: Float
+          )
     
