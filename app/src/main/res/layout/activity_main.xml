@@ -1,64 +1,90 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-          android:layout_width="match_parent"
-          android:layout_height="match_parent"
-          android:orientation="vertical"
-          android:gravity="center"
-          android:padding="32dp"
-          android:background="#101418">
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:gravity="center"
+              android:padding="32dp"
+              android:background="#101418">
 
-          <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="AerialGuard"
-                        android:textColor="#FFFFFF"
-                        android:textSize="30sp"
-                        android:textStyle="bold" />
+              <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="AerialGuard"
+                                android:textColor="#FFFFFF"
+                                android:textSize="30sp"
+                                android:textStyle="bold" />
 
-          <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:gravity="center"
-                        android:text="Real-time human / vehicle overlay for your drone feed"
-                        android:textColor="#AAAAAA"
-                        android:textSize="14sp" />
+              <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:gravity="center"
+                                android:text="Real-time human / vehicle overlay for your drone feed"
+                                android:textColor="#AAAAAA"
+                                android:textSize="14sp" />
 
-          <Button
-                        android:id="@+id/startButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="40dp"
-                        android:paddingLeft="24dp"
-                        android:paddingRight="24dp"
-                        android:text="Start Detection" />
+              <Button
+                                android:id="@+id/startButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="32dp"
+                                android:paddingLeft="24dp"
+                                android:paddingRight="24dp"
+                                android:text="Start Detection" />
 
-          <Button
-                        android:id="@+id/stopButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:paddingLeft="24dp"
-                        android:paddingRight="24dp"
-                        android:text="Stop Detection" />
+              <Button
+                                android:id="@+id/stopButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="14dp"
+                                android:paddingLeft="24dp"
+                                android:paddingRight="24dp"
+                                android:text="Stop Detection" />
 
-          <TextView
-                        android:id="@+id/statusText"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="28dp"
-                        android:gravity="center"
-                        android:text="Tap Start, grant the two permissions, then switch to your drone app."
-                        android:textColor="#66FF99"
-                        android:textSize="13sp" />
+              <TextView
+                                android:id="@+id/thresholdLabel"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="32dp"
+                                android:gravity="center"
+                                android:text="Only show detections above 90% confidence"
+                                android:textColor="#FFFFFF"
+                                android:textSize="13sp" />
 
-          <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="40dp"
-                        android:gravity="center"
-                        android:text="Red = person   Yellow = vehicle"
-                        android:textColor="#666666"
-                        android:textSize="11sp" />
+              <SeekBar
+                                android:id="@+id/thresholdSeek"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp"
+                                android:max="45"
+                                android:progress="40" />
+
+              <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center"
+                                android:text="Lower this if nothing is detected. Takes effect immediately."
+                                android:textColor="#777777"
+                                android:textSize="11sp" />
+
+              <TextView
+                                android:id="@+id/statusText"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="24dp"
+                                android:gravity="center"
+                                android:text="Tap Start, grant the two permissions, then switch to your drone app."
+                                android:textColor="#66FF99"
+                                android:textSize="13sp" />
+
+              <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="28dp"
+                                android:gravity="center"
+                                android:text="Red = person   Yellow = vehicle"
+                                android:textColor="#666666"
+                                android:textSize="11sp" />
 
 </LinearLayout>
