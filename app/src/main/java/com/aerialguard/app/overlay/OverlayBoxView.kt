@@ -7,20 +7,18 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.view.View
 import com.aerialguard.app.detector.Detection
+import com.aerialguard.app.detector.DetectorConfig
 import com.aerialguard.app.detector.DetectorStatus
 import com.aerialguard.app.detector.ThreatCategory
 
 /**
  * Transparent, touch-through view drawn as a system overlay on top of
-  * whatever app is currently on screen (i.e. your drone app). Boxes are
-   * supplied in the pixel space of the analyzed frame and rescaled here to
-    * the view's actual on-screen size.
-     *
-      * A small status line is drawn at the top. It exists so it is always obvious
-       * whether the model actually loaded, which build is running, and how many
-        * objects the last frame produced -- if something is wrong, that line says so
-         * instead of the app just silently drawing nothing.
-          */
+  * whatever app is currently on screen (i.e. your drone app).
+   *
+    * Only people and vehicles that passed the detector's filters are drawn --
+     * the grey "everything the model saw" boxes from the previous version were a
+      * diagnostic aid and are gone, since they were mostly clutter.
+       */
 class OverlayBoxView(context: Context) : View(context) {
 
      @Volatile private var detections: List<Detection> = emptyList()
@@ -61,9 +59,8 @@ class OverlayBoxView(context: Context) : View(context) {
                               val scaleY = height.toFloat() / sourceHeight
 
                               for (detection in detections) {
-                                           val isPrimary = detection.category != ThreatCategory.UNKNOWN
                                            boxPaint.color = colorFor(detection.category)
-                                                       boxPaint.strokeWidth = if (isPrimary) 5f else 2f
+                                                       boxPaint.strokeWidth = 5f
 
                                            val rect = RectF(
                                                             detection.box.left * scaleX,
@@ -73,21 +70,22 @@ class OverlayBoxView(context: Context) : View(context) {
                                                         )
                                                        canvas.drawRect(rect, boxPaint)
 
-                                                                   textPaint.color = if (isPrimary) Color.WHITE else Color.rgb(190, 190, 190)
-                                                                               textPaint.textSize = if (isPrimary) 34f else 26f
+                                                                   textPaint.color = Color.WHITE
+                                           textPaint.textSize = 34f
                                            val label = "${detection.label} ${(detection.confidence * 100).toInt()}%"
                                            canvas.drawText(label, rect.left + 4f, (rect.top - 8f).coerceAtLeast(20f), textPaint)
                               }
                      }
 
                          private fun drawStatus(canvas: Canvas) {
-                                  val line = if (DetectorStatus.modelOk) {
-                                               "AerialGuard ${DetectorStatus.VERSION}  -  ${DetectorStatus.lastRawCount} objects  -  ${DetectorStatus.lastMs}ms"
-                                  } else {
-                                               "AerialGuard ${DetectorStatus.VERSION}  -  MODEL NOT LOADED: ${DetectorStatus.note}"
-                                  }
-                                          statusPaint.color = if (DetectorStatus.modelOk) Color.rgb(102, 255, 153) else Color.rgb(255, 96, 96)
-                                                  canvas.drawText(line, 24f, 96f, statusPaint)
+                                  val minPct = (DetectorConfig.minConfidence * 100).toInt()
+                                          val line = if (DetectorStatus.modelOk) {
+                                                       "AerialGuard ${DetectorStatus.VERSION}  -  ${DetectorStatus.lastRawCount} objects  -  ${DetectorStatus.lastMs}ms  -  min ${minPct}%"
+                                          } else {
+                                                       "AerialGuard ${DetectorStatus.VERSION}  -  MODEL NOT LOADED: ${DetectorStatus.note}"
+                                          }
+                                                  statusPaint.color = if (DetectorStatus.modelOk) Color.rgb(102, 255, 153) else Color.rgb(255, 96, 96)
+                                                          canvas.drawText(line, 24f, 96f, statusPaint)
                          }
 
                              fun updateDetections(newDetections: List<Detection>, srcWidth: Int, srcHeight: Int) {
