@@ -2,104 +2,175 @@ package com.aerialguard.app.detector
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
-import org.tensorflow.lite.Interpreter
-import org.tensorflow.lite.support.common.FileUtil
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
+import android.os.SystemClock
+import org.tensorflow.lite.support.image.TensorImage
+import org.tensorflow.lite.task.core.BaseOptions
+import org.tensorflow.lite.task.vision.detector.ObjectDetector as TfliteObjectDetector
 
 /**
- * Runs Google's free, pretrained COCO SSD-MobileNet TFLite model
-  * (downloaded automatically by download_model.gradle into
-   * app/src/main/assets/detect.tflite + labelmap.txt).
-    *
-     * Only two threat buckets are kept, on purpose, to stay basic and light:
-      * HUMAN ("person") and VEHICLE ("car", "truck", "bus", "motorcycle",
-       * "bicycle", "train", "boat"). Every other COCO class the model reports
-        * (including "airplane") is ignored.
-         */
-class ObjectDetector(context: Context) {
-
-     private val interpreter: Interpreter
-     private val labels: List<String>
-     private val inputSize = 300 // fixed by the SSD-MobileNet-v1 model
-
-     private val vehicleLabels = setOf("car", "truck", "bus", "motorcycle", "bicycle", "train", "boat")
-         private val confidenceThreshold = 0.5f
-
-     init {
-              val model = FileUtil.loadMappedFile(context, "detect.tflite")
-                      val options = Interpreter.Options().apply { setNumThreads(4) }
-                              interpreter = Interpreter(model, options)
-                                      labels = FileUtil.loadLabels(context, "labelmap.txt")
-     }
-
-         fun detect(bitmap: Bitmap): List<Detection> {
-                  val resized = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
-                          val inputBuffer = bitmapToByteBuffer(resized)
-                                  if (resized !== bitmap) resized.recycle()
-
-                                          val outputLocations = Array(1) { Array(10) { FloatArray(4) } }
-                                                  val outputClasses = Array(1) { FloatArray(10) }
-                                                          val outputScores = Array(1) { FloatArray(10) }
-                                                                  val numDetections = FloatArray(1)
-
-                                                                          val outputMap = mapOf(
-                                                                                       0 to outputLocations,
-                                                                                       1 to outputClasses,
-                                                                                       2 to outputScores,
-                                                                                       3 to numDetections
-                                                                                   )
-
-                                                                                  interpreter.runForMultipleInputsOutputs(arrayOf<Any>(inputBuffer), outputMap)
-
-                                                                                          val results = mutableListOf<Detection>()
-                                                                                                  val count = numDetections[0].toInt().coerceIn(0, 10)
-
-                                                                                                          for (i in 0 until count) {
-                                                                                                                       val score = outputScores[0][i]
-                                                                                                                       if (score < confidenceThreshold) continue
-                                                                                                           
-                                                                                                                       val classId = outputClasses[0][i].toInt()
-                                                                                                                                   if (classId < 0 || classId >= labels.size) continue
-                                                                                                                       val label = labels[classId]
-                                                                                                           
-                                                                                                                       val category = when {
-                                                                                                                                        label == "person" -> ThreatCategory.HUMAN
-                                                                                                                                        vehicleLabels.contains(label) -> ThreatCategory.VEHICLE
-                                                                                                                                        else -> ThreatCategory.UNKNOWN
-                                                                                                                       }
-                                                                                                                                   if (category == ThreatCategory.UNKNOWN) continue
-                                                                                                           
-                                                                                                                       // Output order is [top, left, bottom, right], normalized 0..1.
-                                                                                                                       val loc = outputLocations[0][i]
-                                                                                                                       val box = RectF(
-                                                                                                                                        loc[1] * bitmap.width,
-                                                                                                                                        loc[0] * bitmap.height,
-                                                                                                                                        loc[3] * bitmap.width,
-                                                                                                                                        loc[2] * bitmap.height
-                                                                                                                                    )
-                                                                                                                                   results.add(Detection(box, label, category, score))
-                                                                                                          }
-                                                                                                                  return results
-         }
-
-             private fun bitmapToByteBuffer(bitmap: Bitmap): ByteBuffer {
-                      // Quantized (uint8) model — raw 0..255 RGB bytes, no normalization needed.
-                      val buffer = ByteBuffer.allocateDirect(inputSize * inputSize * 3)
-                              buffer.order(ByteOrder.nativeOrder())
-                                      val pixels = IntArray(inputSize * inputSize)
-                                              bitmap.getPixels(pixels, 0, inputSize, 0, 0, inputSize, inputSize)
-                                                      for (pixel in pixels) {
-                                                                   buffer.put(((pixel shr 16) and 0xFF).toByte())
-                                                                               buffer.put(((pixel shr 8) and 0xFF).toByte())
-                                                                                           buffer.put((pixel and 0xFF).toByte())
-                                                      }
-                                                              buffer.rewind()
-                                                                      return buffer
-             }
-
-                 fun close() {
-                          interpreter.close()
-                 }
+ * Live status of the detector, read by the overlay so the on-screen HUD can
+  * show whether the model actually loaded and how many objects the last frame
+   * produced. Deliberately global (one detector, one process) so no extra
+    * plumbing is needed between the service and the overlay view.
+     */
+object DetectorStatus {
+     @Volatile var modelOk = false
+     @Volatile var note = "starting"
+     @Volatile var lastRawCount = 0
+     @Volatile var lastMs = 0L
+     const val VERSION = "2.0"
 }
+
+/**
+ * Object detector built on the TensorFlow Lite Task Library.
+  *
+   * Why the Task Library instead of a raw Interpreter: the model file ships with
+    * embedded metadata that includes its own label map, so class ids are resolved
+     * to names by the library itself. The previous hand-rolled version indexed a
+      * separate labelmap.txt by hand, which is what made every car report as
+       * "bicycle"/"motorcycle" -- that whole class of bug is now impossible.
+        *
+         * Two other accuracy fixes live here:
+          *
+           *  - Square tiling instead of squashing. A phone screen is very tall (e.g.
+            *    1080x2400). Resizing that straight into the model's square input
+             *    stretched everything horizontally by more than 2x, which wrecks
+              *    detection. Instead the frame is cut into overlapping square tiles, each
+               *    fed to the model at its native aspect ratio, and results are merged.
+                *  - A stronger model (EfficientDet-Lite2) and a lower score threshold, since
+                 *    screen-captured, re-compressed video is harder than clean photos.
+                  */
+                  class ObjectDetector(context: Context) {
+
+                       companion object {
+                                private const val TILE_PX = 448
+                                private const val SCORE_THRESHOLD = 0.30f
+                                private const val MAX_RESULTS_PER_TILE = 25
+                                private const val MERGE_IOU = 0.55f
+                       }
+
+                           private val detector: TfliteObjectDetector
+
+                       private val tileBitmap = Bitmap.createBitmap(TILE_PX, TILE_PX, Bitmap.Config.ARGB_8888)
+                           private val tileCanvas = Canvas(tileBitmap)
+                               private val tilePaint = Paint(Paint.FILTER_BITMAP_FLAG)
+                                   private val destRect = Rect(0, 0, TILE_PX, TILE_PX)
+
+                                       private val vehicleLabels = setOf(
+                                                "car", "truck", "bus", "motorcycle", "bicycle", "train", "boat"
+                                            )
+
+                                           init {
+                                                    val baseOptions = BaseOptions.builder()
+                                                                .setNumThreads(4)
+                                                                            .build()
+                                                                                    val options = TfliteObjectDetector.ObjectDetectorOptions.builder()
+                                                                                                .setBaseOptions(baseOptions)
+                                                                                                            .setMaxResults(MAX_RESULTS_PER_TILE)
+                                                                                                                        .setScoreThreshold(SCORE_THRESHOLD)
+                                                                                                                                    .build()
+                                                                                                                                            detector = TfliteObjectDetector.createFromFileAndOptions(context, "detect.tflite", options)
+                                                                                                                                                    DetectorStatus.modelOk = true
+                                                    DetectorStatus.note = "model loaded"
+                                           }
+
+                                               fun detect(bitmap: Bitmap): List<Detection> {
+                                                        val startedAt = SystemClock.elapsedRealtime()
+
+                                                                val width = bitmap.width
+                                                        val height = bitmap.height
+                                                        if (width < 2 || height < 2) return emptyList()
+
+                                                                val shortSide = minOf(width, height)
+                                                                        val longSide = maxOf(width, height)
+                                                                                val landscape = width >= height
+
+                                                        val tileCount = maxOf(1, (longSide + shortSide - 1) / shortSide)
+                                                                val step = if (tileCount == 1) 0 else (longSide - shortSide) / (tileCount - 1)
+
+                                                                        val collected = mutableListOf<Detection>()
+
+                                                                                for (i in 0 until tileCount) {
+                                                                                             val offset = if (tileCount == 1) 0 else i * step
+                                                                                             val srcRect = if (landscape) {
+                                                                                                              Rect(offset, 0, offset + shortSide, shortSide)
+                                                                                             } else {
+                                                                                                              Rect(0, offset, shortSide, offset + shortSide)
+                                                                                             }
+
+                                                                                                         tileCanvas.drawBitmap(bitmap, srcRect, destRect, tilePaint)
+                                                                                                         
+                                                                                                                     val raw = try {
+                                                                                                                                      detector.detect(TensorImage.fromBitmap(tileBitmap))
+                                                                                                                     } catch (e: Exception) {
+                                                                                                                                      DetectorStatus.note = "detect failed: ${e.message}"
+                                                                                                                                      emptyList()
+                                                                                                                     }
+                                                                                                                     
+                                                                                                                                 val backScale = shortSide.toFloat() / TILE_PX
+
+                                                                                             for (result in raw) {
+                                                                                                              val category = result.categories.maxByOrNull { it.score } ?: continue
+                                                                                                              val label = category.label ?: continue
+                                                                                                              val box = result.boundingBox
+
+                                                                                                              val mapped = RectF(
+                                                                                                                                   box.left * backScale + srcRect.left,
+                                                                                                                                   box.top * backScale + srcRect.top,
+                                                                                                                                   box.right * backScale + srcRect.left,
+                                                                                                                                   box.bottom * backScale + srcRect.top
+                                                                                                                               )
+                                                                                                              
+                                                                                                                              val threat = when {
+                                                                                                                                                   label == "person" -> ThreatCategory.HUMAN
+                                                                                                                                                   vehicleLabels.contains(label) -> ThreatCategory.VEHICLE
+                                                                                                                                                   else -> ThreatCategory.UNKNOWN
+                                                                                                                              }
+                                                                                                                              
+                                                                                                                                              collected.add(Detection(mapped, label, threat, category.score))
+                                                                                             }
+                                                                                }
+
+                                                                                        val merged = mergeOverlapping(collected)
+
+                                                                                                DetectorStatus.lastRawCount = merged.size
+                                                        DetectorStatus.lastMs = SystemClock.elapsedRealtime() - startedAt
+                                                        return merged
+                                               }
+
+                                                   private fun mergeOverlapping(items: List<Detection>): List<Detection> {
+                                                            if (items.size < 2) return items
+                                                            val sorted = items.sortedByDescending { it.confidence }
+                                                                    val kept = mutableListOf<Detection>()
+                                                                            for (candidate in sorted) {
+                                                                                         val duplicate = kept.any { existing ->
+                                                                                                          existing.label == candidate.label && iou(existing.box, candidate.box) > MERGE_IOU
+                                                                                         }
+                                                                                                     if (!duplicate) kept.add(candidate)
+                                                                            }
+                                                                                    return kept
+                                                   }
+
+                                                       private fun iou(a: RectF, b: RectF): Float {
+                                                                val left = maxOf(a.left, b.left)
+                                                                        val top = maxOf(a.top, b.top)
+                                                                                val right = minOf(a.right, b.right)
+                                                                                        val bottom = minOf(a.bottom, b.bottom)
+                                                                                                if (right <= left || bottom <= top) return 0f
+                                                                val overlap = (right - left) * (bottom - top)
+                                                                        val areaA = (a.right - a.left) * (a.bottom - a.top)
+                                                                                val areaB = (b.right - b.left) * (b.bottom - b.top)
+                                                                                        val union = areaA + areaB - overlap
+                                                                return if (union <= 0f) 0f else overlap / union
+                                                       }
+
+                                                           fun close() {
+                                                                    detector.close()
+                                                                            tileBitmap.recycle()
+                                                           }
+                  }
+                  
