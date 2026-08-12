@@ -1,48 +1,44 @@
-// Downloads Google's official, free, pretrained COCO SSD-MobileNet TFLite
-// model (~4MB, quantized) the first time you build the project, and unpacks
-// it straight into app/src/main/assets/. This is the exact same model used
-// by TensorFlow's own official "object detection" Android example, so it
-// already ships with a label map (labelmap.txt) that includes "person",
-// "car", "truck", "bus", "motorcycle", "bicycle", "airplane", etc.
+// Downloads a pretrained object-detection model at build time into
+// app/src/main/assets/detect.tflite.
 //
-// This download happens on YOUR machine when you open/build the project in
-// Android Studio (which has normal internet access) — it does not happen
-// anywhere else. If it ever fails (e.g. you're offline, or Google moves the
-// file), just download the zip yourself from the same URL below and unzip
-// detect.tflite + labelmap.txt into app/src/main/assets/ manually.
+// This is EfficientDet-Lite2 from Google's official TensorFlow Lite model
+// collection (the same file the official TensorFlow object-detection Android
+// sample uses). Two things matter about this particular file:
+//
+//  1. It has embedded metadata, which includes its own label map. The TFLite
+//     Task Library reads those labels straight out of the model, so there is
+//     no separate labelmap.txt to index by hand -- that hand-indexing is what
+//     used to make cars report as "bicycle"/"motorcycle".
+//  2. It is considerably more accurate than the old SSD-MobileNet-v1 model,
+//     which matters for objects in screen-captured, re-compressed video.
+//
+// Note this task now FAILS the build if the download does not work. The
+// previous version only printed a warning, which meant a silent download
+// failure would produce an app that simply never detected anything.
 
-def modelZipUrl = 'https://storage.googleapis.com/download.tensorflow.org/models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip'
+def modelUrl = 'https://storage.googleapis.com/download.tensorflow.org/models/tflite/task_library/object_detection/android/lite-model_efficientdet_lite2_detection_metadata_1.tflite'
 def assetsDir = new File(projectDir, 'src/main/assets')
 def modelFile = new File(assetsDir, 'detect.tflite')
-def labelFile = new File(assetsDir, 'labelmap.txt')
-def downloadedZip = new File(buildDir, 'model_download/coco_ssd_mobilenet.zip')
 
 tasks.register('downloadDetectionModel') {
-      doLast {
-                if (modelFile.exists() && labelFile.exists()) {
-                              println "AerialGuard: detection model already present, skipping download."
-                              return
-                }
-                println "AerialGuard: downloading pretrained detection model from ${modelZipUrl} ..."
-                downloadedZip.parentFile.mkdirs()
-                assetsDir.mkdirs()
-                try {
-                              new URL(modelZipUrl).withInputStream { input ->
-                                                downloadedZip.withOutputStream { output -> output << input }
-                              }
-                              copy {
-                                                from zipTree(downloadedZip)
-                                                into assetsDir
-                                                include 'detect.tflite', 'labelmap.txt'
-                              }
-                              println "AerialGuard: model ready at ${modelFile}"
-                } catch (Exception e) {
-                              println "AerialGuard: WARNING — could not download the model automatically (${e.message})."
-                              println "AerialGuard: download ${modelZipUrl} by hand and unzip detect.tflite + labelmap.txt into ${assetsDir}"
-                }
-      }
+          doLast {
+                        if (modelFile.exists() && modelFile.length() > 100000) {
+                                          println "AerialGuard: detection model already present (${modelFile.length()} bytes), skipping download."
+                                          return
+                        }
+                        println "AerialGuard: downloading detection model from ${modelUrl} ..."
+                        assetsDir.mkdirs()
+                        new URL(modelUrl).withInputStream { input ->
+                                          modelFile.withOutputStream { output -> output << input }
+                        }
+                        def size = modelFile.exists() ? modelFile.length() : 0
+                        if (size < 100000) {
+                                          throw new GradleException("AerialGuard: model download failed -- got ${size} bytes from ${modelUrl}")
+                        }
+                        println "AerialGuard: model ready at ${modelFile} (${size} bytes)"
+          }
 }
 
 tasks.matching { it.name == 'preBuild' }.configureEach {
-      dependsOn 'downloadDetectionModel'
+          dependsOn 'downloadDetectionModel'
 }
