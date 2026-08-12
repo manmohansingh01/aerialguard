@@ -8,65 +8,94 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.aerialguard.app.detector.DetectorConfig
 
 class MainActivity : AppCompatActivity() {
 
-      private lateinit var statusText: TextView
+          private lateinit var statusText: TextView
+          private lateinit var thresholdLabel: TextView
 
-      private val notificationPermissionLauncher =
-          registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op either way */ }
+          // SeekBar progress 0..45 maps to a 50%..95% confidence threshold.
+          private val minThresholdPercent = 50
 
-              private val screenCaptureLauncher =
-          registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-                        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-                                          val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
-                                                                putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
-                                                                                    putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, result.data)
-                                          }
-                                                          ContextCompat.startForegroundService(this, serviceIntent)
-                                                                          updateStatus("Running — switch to your drone app now. Boxes will appear on top of it.")
-                        } else {
-                                          updateStatus("Screen capture permission was not granted — tap Start to try again.")
-                        }
-          }
+          private val notificationPermissionLauncher =
+              registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
-              override fun onCreate(savedInstanceState: Bundle?) {
-                        super.onCreate(savedInstanceState)
-                                setContentView(R.layout.activity_main)
-
-                                        statusText = findViewById(R.id.statusText)
-                                                findViewById<Button>(R.id.startButton).setOnClickListener { onStartClicked() }
-                                                        findViewById<Button>(R.id.stopButton).setOnClickListener { onStopClicked() }
-
-                                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                                                              notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                                                                }
+                  private val screenCaptureLauncher =
+              registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                                if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+                                                      val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
+                                                                                putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
+                                                                                                    putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, result.data)
+                                                      }
+                                                                      ContextCompat.startForegroundService(this, serviceIntent)
+                                                                                      updateStatus("Running - switch to your drone app now. Boxes will appear on top of it.")
+                                } else {
+                                                      updateStatus("Screen capture permission was not granted - tap Start to try again.")
+                                }
               }
 
-                  private fun onStartClicked() {
-                            if (!Settings.canDrawOverlays(this)) {
-                                          updateStatus("Step 1: allow 'Display over other apps' for AerialGuard, then come back and tap Start again.")
-                                                      startActivity(
-                                                                        Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-                                                                                    )
-                                                                  return
-                            }
+                  override fun onCreate(savedInstanceState: Bundle?) {
+                                super.onCreate(savedInstanceState)
+                                        setContentView(R.layout.activity_main)
 
-                                    updateStatus("Step 2: tap 'Start now' on the next screen to allow screen capture.")
-                                            val projectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                            screenCaptureLauncher.launch(projectionManager.createScreenCaptureIntent())
+                                                statusText = findViewById(R.id.statusText)
+                                                        thresholdLabel = findViewById(R.id.thresholdLabel)
+                                                                findViewById<Button>(R.id.startButton).setOnClickListener { onStartClicked() }
+                                                                        findViewById<Button>(R.id.stopButton).setOnClickListener { onStopClicked() }
+
+                                                                                val seek = findViewById<SeekBar>(R.id.thresholdSeek)
+                                                                                        seek.progress = (DetectorConfig.minConfidence * 100).toInt() - minThresholdPercent
+                                applyThreshold(seek.progress)
+                                        seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                                                          override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
+                                                                                applyThreshold(progress)
+                                                          }
+
+                                                                      override fun onStartTrackingTouch(bar: SeekBar?) {}
+                                                                                  override fun onStopTrackingTouch(bar: SeekBar?) {}
+                                        })
+
+                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                                                  notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                                }
                   }
 
-                      private fun onStopClicked() {
-                                stopService(Intent(this, ScreenCaptureService::class.java))
-                                        updateStatus("Stopped.")
-                      }
+                      /**
+                           * Takes effect immediately, even while the overlay is already running --
+                                * the detector reads this value fresh on every frame.
+                                     */
+                                         private fun applyThreshold(progress: Int) {
+                                                       val percent = minThresholdPercent + progress
+                                                       DetectorConfig.minConfidence = percent / 100f
+                                                       thresholdLabel.text = "Only show detections above $percent% confidence"
+                                         }
 
-                          private fun updateStatus(text: String) {
-                                    statusText.text = text
-                          }
+                                             private fun onStartClicked() {
+                                                           if (!Settings.canDrawOverlays(this)) {
+                                                                             updateStatus("Step 1: allow 'Display over other apps' for AerialGuard, then come back and tap Start again.")
+                                                                                         startActivity(
+                                                                                                               Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                                                                                                                           )
+                                                                                                     return
+                                                           }
+
+                                                                   updateStatus("Step 2: tap 'Start now' on the next screen to allow screen capture.")
+                                                                           val projectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                                                           screenCaptureLauncher.launch(projectionManager.createScreenCaptureIntent())
+                                             }
+
+                                                 private fun onStopClicked() {
+                                                               stopService(Intent(this, ScreenCaptureService::class.java))
+                                                                       updateStatus("Stopped.")
+                                                 }
+
+                                                     private fun updateStatus(text: String) {
+                                                                   statusText.text = text
+                                                     }
 }
