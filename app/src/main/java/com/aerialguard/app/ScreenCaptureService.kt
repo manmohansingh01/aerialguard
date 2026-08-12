@@ -24,6 +24,7 @@ import android.os.SystemClock
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
+import com.aerialguard.app.detector.DetectorStatus
 import com.aerialguard.app.detector.FrameAnalyzer
 import com.aerialguard.app.detector.ObjectDetector
 import com.aerialguard.app.overlay.OverlayController
@@ -33,7 +34,7 @@ import com.aerialguard.app.overlay.OverlayController
   * detection on a background thread at a throttled frame rate, and pushes
    * results to the system overlay. Because MediaProjection mirrors the whole
     * device display, this keeps working no matter which app is in the
-     * foreground — switch to your drone app after tapping Start and the boxes
+     * foreground -- switch to your drone app after tapping Start and the boxes
       * stay drawn on top of it.
        */
 class ScreenCaptureService : Service() {
@@ -45,13 +46,14 @@ class ScreenCaptureService : Service() {
               const val EXTRA_RESULT_DATA = "extra_result_data"
               const val ACTION_STOP = "com.aerialguard.app.STOP"
 
-              // ~6-7 fps. Real-time enough to track people/vehicles while
-              // staying light on battery and CPU. Lower this number for
-              // higher fps at the cost of battery, or raise it to save battery.
-              private const val PROCESS_INTERVAL_MS = 150L
+              // ~4 fps. Each frame now runs the model over several square tiles
+              // (see ObjectDetector) which is heavier but far more accurate, so
+              // this leaves the CPU enough headroom to keep up.
+              private const val PROCESS_INTERVAL_MS = 250L
 
-              // Screen is captured at half resolution — plenty for detection,
-              // much cheaper than full-res capture + inference.
+              // Screen is captured at half resolution. The detector downscales each
+              // tile to the model's input size anyway, so capturing at full
+              // resolution would cost memory without adding usable detail.
               private const val CAPTURE_SCALE = 0.5f
      }
 
@@ -87,12 +89,10 @@ class ScreenCaptureService : Service() {
                                                return START_NOT_STICKY
                       }
 
-                              // Must call startForeground immediately (required by Android 14+
-                                      // for the mediaProjection foreground service type).
-                                              startForeground(NOTIF_ID, buildNotification())
+                              startForeground(NOTIF_ID, buildNotification())
 
-                                                      val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
-                                                                  ?: Activity.RESULT_CANCELED
+                                      val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
+                                                  ?: Activity.RESULT_CANCELED
                       @Suppress("DEPRECATION")
                               val resultData: Intent? = intent?.getParcelableExtra(EXTRA_RESULT_DATA)
 
@@ -108,9 +108,10 @@ class ScreenCaptureService : Service() {
                                       objectDetector = try {
                                                    ObjectDetector(applicationContext)
                                       } catch (e: Exception) {
-                                                   // detect.tflite / labelmap.txt missing from assets (model
-                                                   // download step didn't run). See README for how to add the
-                                                   // model by hand.
+                                                   // Model missing or unreadable. The overlay's status line reports
+                                                   // this in red rather than the app silently drawing nothing.
+                                                   DetectorStatus.modelOk = false
+                                                   DetectorStatus.note = e.message ?: e.javaClass.simpleName
                                                    null
                                       }
                                               frameAnalyzer = FrameAnalyzer(objectDetector)
@@ -195,7 +196,7 @@ class ScreenCaptureService : Service() {
                                                        )
                                                       return NotificationCompat.Builder(this, CHANNEL_ID)
                                                                   .setContentTitle("AerialGuard is watching")
-                                                                              .setContentText("Detecting people & vehicles on your drone feed")
+                                                                              .setContentText("Detecting people and vehicles on your drone feed")
                                                                                           .setSmallIcon(android.R.drawable.ic_menu_view)
                                                                                                       .addAction(0, "Stop", stopPendingIntent)
                                                                                                                   .setOngoing(true)
