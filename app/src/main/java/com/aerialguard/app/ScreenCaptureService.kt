@@ -24,19 +24,17 @@ import android.os.SystemClock
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
+import com.aerialguard.app.detector.AerialDetector
+import com.aerialguard.app.detector.CocoDetector
 import com.aerialguard.app.detector.DetectorStatus
 import com.aerialguard.app.detector.FrameAnalyzer
-import com.aerialguard.app.detector.ObjectDetector
 import com.aerialguard.app.overlay.OverlayController
 
 /**
- * Foreground service that owns the MediaProjection screen capture, runs
-  * detection on a background thread at a throttled frame rate, and pushes
-   * results to the system overlay. Because MediaProjection mirrors the whole
-    * device display, this keeps working no matter which app is in the
-     * foreground -- switch to your drone app after tapping Start and the boxes
-      * stay drawn on top of it.
-       */
+ * Foreground service that owns the MediaProjection screen capture, runs every
+  * enabled detector on a background thread at a throttled frame rate, and
+   * pushes merged results to the system overlay.
+    */
 class ScreenCaptureService : Service() {
 
      companion object {
@@ -46,24 +44,19 @@ class ScreenCaptureService : Service() {
               const val EXTRA_RESULT_DATA = "extra_result_data"
               const val ACTION_STOP = "com.aerialguard.app.STOP"
 
-              // ~4 fps. Each frame now runs the model over several square tiles
-              // (see ObjectDetector) which is heavier but far more accurate, so
-              // this leaves the CPU enough headroom to keep up.
-              private const val PROCESS_INTERVAL_MS = 250L
+              // Two models over three tiles is roughly 300ms of work per frame, so
+              // the interval leaves the CPU room rather than queueing frames up.
+              private const val PROCESS_INTERVAL_MS = 300L
 
-              // Screen is captured at half resolution. The detector downscales each
-              // tile to the model's input size anyway, so capturing at full
-              // resolution would cost memory without adding usable detail.
               private const val CAPTURE_SCALE = 0.5f
      }
 
          private var mediaProjection: MediaProjection? = null
      private var virtualDisplay: VirtualDisplay? = null
      private var imageReader: ImageReader? = null
-     private var objectDetector: ObjectDetector? = null
+     private var frameAnalyzer: FrameAnalyzer? = null
 
      private lateinit var overlayController: OverlayController
-     private lateinit var frameAnalyzer: FrameAnalyzer
 
      private var bgThread: HandlerThread? = null
      private var bgHandler: Handler? = null
@@ -105,21 +98,27 @@ class ScreenCaptureService : Service() {
                       mediaProjection = projectionManager.getMediaProjection(resultCode, resultData)
                               mediaProjection?.registerCallback(projectionCallback, bgHandler)
 
-                                      objectDetector = try {
-                                                   ObjectDetector(applicationContext)
-                                      } catch (e: Exception) {
-                                                   // Model missing or unreadable. The overlay's status line reports
-                                                   // this in red rather than the app silently drawing nothing.
-                                                   DetectorStatus.modelOk = false
-                                                   DetectorStatus.note = e.message ?: e.javaClass.simpleName
-                                                   null
-                                      }
-                                              frameAnalyzer = FrameAnalyzer(objectDetector)
+                                      // The ground model is the guaranteed baseline. The aerial model is
+                                              // additive: if it is missing or fails to load the app carries on with
+                                                      // the ground model alone and the HUD says so.
+                                                              val ground = CocoDetector(applicationContext)
+                                                                      val aerial = AerialDetector(applicationContext)
 
-                                                      setupVirtualDisplay()
-                                                              overlayController.show()
+                                                                              DetectorStatus.groundOk = ground.isAvailable
+                      DetectorStatus.aerialOk = aerial.isAvailable
+                      DetectorStatus.note = when {
+                                   ground.isAvailable && aerial.isAvailable -> "both models loaded"
+                                   ground.isAvailable -> "aerial: " + aerial.statusNote
+                                   aerial.isAvailable -> "ground: " + ground.statusNote
+                                   else -> "no model loaded"
+                      }
 
-                                                                      return START_STICKY
+                              frameAnalyzer = FrameAnalyzer(listOf(ground, aerial))
+
+                                      setupVirtualDisplay()
+                                              overlayController.show()
+
+                                                      return START_STICKY
              }
 
                  private fun setupVirtualDisplay() {
@@ -156,7 +155,7 @@ class ScreenCaptureService : Service() {
                      private fun processImage(image: Image) {
                               try {
                                            val bitmap = imageToBitmap(image)
-                                                       val detections = frameAnalyzer.analyze(bitmap)
+                                                       val detections = frameAnalyzer?.analyze(bitmap) ?: emptyList()
                                                                    overlayController.update(detections, bitmap.width, bitmap.height)
                               } catch (e: Exception) {
                                            // Don't let a single bad frame kill the stream.
@@ -220,8 +219,9 @@ class ScreenCaptureService : Service() {
                                                                       mediaProjection?.unregisterCallback(projectionCallback)
                                                                               mediaProjection?.stop()
                                                                                       overlayController.hide()
-                                                                                              objectDetector?.close()
-                                                                                                      bgThread?.quitSafely()
+                                                                                              frameAnalyzer?.close()
+                                                                                                      frameAnalyzer = null
+                                              bgThread?.quitSafely()
                                      }
 
                                          override fun onBind(intent: Intent?): IBinder? = null
