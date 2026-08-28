@@ -10,12 +10,11 @@ import android.os.SystemClock
 /**
  * Runs every enabled detector over one frame and merges the results.
   *
-   * Tiling lives here rather than inside a detector so the frame is cut up and
-    * rendered once per frame, and the same tile bitmaps feed every model. A phone
-     * screen is very tall (e.g. 1080x2400); squeezing that into a square model
-      * input stretches everything horizontally by more than 2x and wrecks accuracy,
-       * so the frame is cut into overlapping square tiles instead.
-        */
+   * Tiling lives here so the frame is cut and rendered once, with the same tiles
+    * feeding every model. A phone screen is very tall (e.g. 1080x2400); squeezing
+     * that into a square model input stretches everything horizontally by more
+      * than 2x, so the frame is cut into overlapping square tiles instead.
+       */
 class FrameAnalyzer(private val detectors: List<Detector>) {
 
      companion object {
@@ -42,11 +41,14 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
                                                        it.isAvailable && when (it.source) {
                                                                         DetectorSource.GROUND -> DetectorConfig.groundEnabled
                                                                         DetectorSource.AERIAL -> DetectorConfig.aerialEnabled
+                                                                        DetectorSource.MILITARY -> DetectorConfig.militaryEnabled
                                                        }
                                           }
                                                   if (active.isEmpty()) {
                                                                DetectorStatus.groundCount = 0
                                                                DetectorStatus.aerialCount = 0
+                                                               DetectorStatus.militaryCount = 0
+                                                               DetectorStatus.gatedCount = 0
                                                                return emptyList()
                                                   }
 
@@ -63,66 +65,77 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
                                           val backScale = shortSide.toFloat() / TILE_PX
 
                                   val collected = ArrayList<Detection>()
+                                          var gated = 0
 
-                                          for (i in 0 until tileCount) {
-                                                       val offset = if (tileCount == 1) 0 else i * step
-                                                       val srcRect = if (landscape) {
-                                                                        Rect(offset, 0, offset + shortSide, shortSide)
-                                                       } else {
-                                                                        Rect(0, offset, shortSide, offset + shortSide)
-                                                       }
+                                  for (i in 0 until tileCount) {
+                                               val offset = if (tileCount == 1) 0 else i * step
+                                               val srcRect = if (landscape) {
+                                                                Rect(offset, 0, offset + shortSide, shortSide)
+                                               } else {
+                                                                Rect(0, offset, shortSide, offset + shortSide)
+                                               }
 
-                                                                   tileCanvas.drawBitmap(bitmap, srcRect, destRect, tilePaint)
+                                                           tileCanvas.drawBitmap(bitmap, srcRect, destRect, tilePaint)
 
-                                                                               for (detector in active) {
-                                                                                                val raw = try {
-                                                                                                                     detector.detectTile(tileBitmap)
-                                                                                                } catch (e: Exception) {
-                                                                                                                     emptyList()
-                                                                                                }
+                                                                       for (detector in active) {
+                                                                                        val raw = try {
+                                                                                                             detector.detectTile(tileBitmap)
+                                                                                        } catch (e: Exception) {
+                                                                                                             emptyList()
+                                                                                        }
 
-                                                                                                                for (r in raw) {
-                                                                                                                                     if (r.score < minConfidence) continue
-                                                                                                                 
-                                                                                                                                     val category = Taxonomy.categorise(r.label)
-                                                                                                                                                         if (!showAll && category == ThreatCategory.OTHER) continue
-                                                                                                                 
-                                                                                                                                     val boxW = r.box.right - r.box.left
-                                                                                                                                     val boxH = r.box.bottom - r.box.top
-                                                                                                                                     if (boxW <= 0f || boxH <= 0f) continue
-                                                                                                                 
-                                                                                                                                     val aspect = maxOf(boxW / boxH, boxH / boxW)
-                                                                                                                                                         if (aspect > MAX_ASPECT) continue
-                                                                                                                                     if ((boxW * boxH) / tileArea > MAX_AREA_FRACTION) continue
-                                                                                                                 
-                                                                                                                                     collected.add(
-                                                                                                                                                              Detection(
-                                                                                                                                                                                           RectF(
-                                                                                                                                                                                                                            r.box.left * backScale + srcRect.left,
-                                                                                                                                                                                                                            r.box.top * backScale + srcRect.top,
-                                                                                                                                                                                                                            r.box.right * backScale + srcRect.left,
-                                                                                                                                                                                                                            r.box.bottom * backScale + srcRect.top
-                                                                                                                                                                                                                        ),
-                                                                                                                                                                                           r.label, category, r.score, detector.source
-                                                                                                                                                                                       )
-                                                                                                                                                                                  )
-                                                                                                                }
-                                                                               }
-                                          }
+                                                                                                        for (r in raw) {
+                                                                                                                             if (r.score < minConfidence) continue
+                                                                                                         
+                                                                                                                             val rawCategory = Taxonomy.categorise(r.label)
+                                                                                                                                                 if (!showAll && rawCategory == ThreatCategory.OTHER) continue
+                                                                                                         
+                                                                                                                             val boxW = r.box.right - r.box.left
+                                                                                                                             val boxH = r.box.bottom - r.box.top
+                                                                                                                             if (boxW <= 0f || boxH <= 0f) continue
+                                                                                                         
+                                                                                                                             val aspect = maxOf(boxW / boxH, boxH / boxW)
+                                                                                                                                                 if (aspect > MAX_ASPECT) continue
+                                                                                                                             if ((boxW * boxH) / tileArea > MAX_AREA_FRACTION) continue
+                                                                                                         
+                                                                                                                             val mapped = RectF(
+                                                                                                                                                      r.box.left * backScale + srcRect.left,
+                                                                                                                                                      r.box.top * backScale + srcRect.top,
+                                                                                                                                                      r.box.right * backScale + srcRect.left,
+                                                                                                                                                      r.box.bottom * backScale + srcRect.top
+                                                                                                                                                  )
+                                                                                                                             
+                                                                                                                                                 // Resolution gate: only claim a fine-grained class when
+                                                                                                                                                                     // there are enough pixels on target to support it.
+                                                                                                                                                                                         val heightPx = mapped.bottom - mapped.top
+                                                                                                                             val gateResult = Taxonomy.applyResolutionGate(r.label, rawCategory, heightPx)
+                                                                                                                                                 val label = gateResult.first
+                                                                                                                             val category = gateResult.second
+                                                                                                                             val wasGated = gateResult.third
+                                                                                                                             if (wasGated) gated++
+                                                                                                         
+                                                                                                                             collected.add(
+                                                                                                                                                      Detection(mapped, label, category, r.score, detector.source, wasGated)
+                                                                                                                                                                          )
+                                                                                                        }
+                                                                       }
+                                  }
 
-                                                  val merged = merge(collected)
+                                          val merged = merge(collected)
 
-                                                          DetectorStatus.groundCount = merged.count { it.source == DetectorSource.GROUND }
-                                                                  DetectorStatus.aerialCount = merged.count { it.source == DetectorSource.AERIAL }
-                                                                          DetectorStatus.lastMs = SystemClock.elapsedRealtime() - startedAt
+                                                  DetectorStatus.groundCount = merged.count { it.source == DetectorSource.GROUND }
+                                                          DetectorStatus.aerialCount = merged.count { it.source == DetectorSource.AERIAL }
+                                                                  DetectorStatus.militaryCount = merged.count { it.source == DetectorSource.MILITARY }
+                                                                          DetectorStatus.gatedCount = gated
+                                  DetectorStatus.lastMs = SystemClock.elapsedRealtime() - startedAt
                                   return merged
                          }
 
                              /**
-                                  * Removes duplicates from two sources: overlapping tiles within one model,
-                                       * and both models finding the same object. Cross-model matching is done on
-                                            * category rather than label, because the two label sets disagree -- COCO
-                                                 * says "car" where VisDrone may say "van", for the same vehicle.
+                                  * Removes duplicates within one model (overlapping tiles) and across
+                                       * models (both finding the same object). Cross-model matching is done on
+                                            * category rather than label, because the label sets disagree -- COCO says
+                                                 * "car" where VisDrone says "van", for the same vehicle.
                                                       */
                                                           private fun merge(items: List<Detection>): List<Detection> {
                                                                    if (items.size < 2) return items
