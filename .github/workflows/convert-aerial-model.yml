@@ -9,7 +9,7 @@
 { "name": "Install exporter", "run": "python -m pip install --upgrade pip && pip install ultralytics tensorflow onnx onnxslim onnx_graphsurgeon sng4onnx onnx2tf" },
 { "name": "Download VisDrone weights", "run": "curl -L --fail -o best.pt https://huggingface.co/mshamrai/yolov8n-visdrone/resolve/main/best.pt && ls -la best.pt" },
 { "name": "Export to TFLite", "run": "python -c \"from ultralytics import YOLO; m = YOLO('best.pt'); print('classes:', m.names); m.export(format='tflite', imgsz=448)\"" },
-{ "name": "Collect the model", "run": "find . -name '*.tflite'; mkdir -p out; cp $(find . -name '*float32.tflite' | head -n1) out/aerial.tflite; ls -la out/" },
+{ "name": "Collect the model", "run": "find . -name '*.tflite'; mkdir -p out; cp best.tflite out/aerial.tflite; ls -la out/" },
 { "name": "Upload model artifact", "uses": "actions/upload-artifact@v4", "with": { "name": "aerial-model", "path": "out/aerial.tflite" } }
 ]
 }
