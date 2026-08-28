@@ -94,18 +94,18 @@ class OverlayBoxView(context: Context) : View(context) {
 
                                  private fun drawStatus(canvas: Canvas) {
                                           val minPct = (DetectorConfig.minConfidence * 100).toInt()
-                                                  val g = if (DetectorStatus.groundOk) DetectorStatus.groundCount.toString() else "n/a"
+                                                  val m = if (DetectorStatus.militaryOk) DetectorStatus.militaryCount.toString() else "n/a"
                                           val a = if (DetectorStatus.aerialOk) DetectorStatus.aerialCount.toString() else "n/a"
-                                          val m = if (DetectorStatus.militaryOk) DetectorStatus.militaryCount.toString() else "n/a"
+                                          val g = if (DetectorStatus.groundOk) DetectorStatus.groundCount.toString() else "n/a"
 
-                                          val line = "AerialGuard " + DetectorStatus.VERSION +
-                                              "  -  ground " + g + "  -  aerial " + a + "  -  mil " + m +
+                                          val line = "NS NETRA " + DetectorStatus.VERSION +
+                                              "  -  mil " + m + "  -  aerial " + a + "  -  ground " + g +
                                               "  -  " + DetectorStatus.lastMs + "ms  -  min " + minPct + "%"
 
                                           statusPaint.color = when {
-                                                       DetectorStatus.groundOk && DetectorStatus.aerialOk && DetectorStatus.militaryOk ->
+                                                       DetectorStatus.militaryOk && DetectorStatus.aerialOk && DetectorStatus.groundOk ->
                                                            Color.rgb(102, 255, 153)
-                                                                       DetectorStatus.groundOk || DetectorStatus.aerialOk || DetectorStatus.militaryOk ->
+                                                                       DetectorStatus.militaryOk || DetectorStatus.aerialOk || DetectorStatus.groundOk ->
                                                            Color.rgb(255, 210, 0)
                                                                        else -> Color.rgb(255, 96, 96)
                                           }
@@ -118,7 +118,7 @@ class OverlayBoxView(context: Context) : View(context) {
                                                                                                          " too small to classify - showing coarse label only",
                                                                                                     24f, 124f, statusPaint
                                                                                                 )
-                                                          } else if (!DetectorStatus.aerialOk || !DetectorStatus.militaryOk) {
+                                                          } else if (!DetectorStatus.militaryOk || !DetectorStatus.aerialOk) {
                                                                        statusPaint.color = Color.rgb(170, 190, 210)
                                                                                    canvas.drawText(DetectorStatus.note, 24f, 124f, statusPaint)
                                                           }
