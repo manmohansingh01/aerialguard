@@ -18,7 +18,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh run download 33158909087 --repo ${{ github.repository }} --name military-model --dir milmodel
 
-        run: python3 -c "import shutil,glob; f=glob.glob('milmodel/**/*.tflite',recursive=True); print(f); shutil.copy(f[0],'app/src/main/assets/military.tflite') if f else print('no model found')"
+      - name: Install military model into assets
         continue-on-error: true
         run: python3 -c "import shutil,glob; f=glob.glob(chr(39)+chr(39)); import sys" || true
 
