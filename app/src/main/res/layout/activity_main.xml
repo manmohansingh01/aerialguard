@@ -1,139 +1,157 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-      android:layout_width="match_parent"
-      android:layout_height="match_parent"
-      android:background="#101418">
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:background="#101418">
 
-      <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center_horizontal"
-                android:padding="28dp">
+          <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:gravity="center_horizontal"
+                        android:padding="28dp">
 
-                <TextView
-                              android:layout_width="wrap_content"
-                              android:layout_height="wrap_content"
-                              android:text="AerialGuard"
-                              android:textColor="#FFFFFF"
-                              android:textSize="30sp"
-                              android:textStyle="bold" />
+                        <TextView
+                                          android:layout_width="wrap_content"
+                                          android:layout_height="wrap_content"
+                                          android:text="NS NETRA"
+                                          android:textColor="#FFFFFF"
+                                          android:textSize="32sp"
+                                          android:textStyle="bold" />
 
-                <TextView
-                              android:layout_width="wrap_content"
-                              android:layout_height="wrap_content"
-                              android:layout_marginTop="8dp"
-                              android:gravity="center"
-                              android:text="Dual-model human / vehicle detection for drone feeds"
-                              android:textColor="#AAAAAA"
-                              android:textSize="14sp" />
+                        <TextView
+                                          android:layout_width="wrap_content"
+                                          android:layout_height="wrap_content"
+                                          android:layout_marginTop="6dp"
+                                          android:gravity="center"
+                                          android:text="Aerial reconnaissance overlay for drone feeds"
+                                          android:textColor="#FFD200"
+                                          android:textSize="13sp" />
 
-                <Button
-                              android:id="@+id/startButton"
-                              android:layout_width="wrap_content"
-                              android:layout_height="wrap_content"
-                              android:layout_marginTop="24dp"
-                              android:paddingLeft="24dp"
-                              android:paddingRight="24dp"
-                              android:text="Start Detection" />
+                        <Button
+                                          android:id="@+id/startButton"
+                                          android:layout_width="wrap_content"
+                                          android:layout_height="wrap_content"
+                                          android:layout_marginTop="24dp"
+                                          android:paddingLeft="24dp"
+                                          android:paddingRight="24dp"
+                                          android:text="Start Detection" />
 
-                <Button
-                              android:id="@+id/stopButton"
-                              android:layout_width="wrap_content"
-                              android:layout_height="wrap_content"
-                              android:layout_marginTop="12dp"
-                              android:paddingLeft="24dp"
-                              android:paddingRight="24dp"
-                              android:text="Stop Detection" />
+                        <Button
+                                          android:id="@+id/stopButton"
+                                          android:layout_width="wrap_content"
+                                          android:layout_height="wrap_content"
+                                          android:layout_marginTop="12dp"
+                                          android:paddingLeft="24dp"
+                                          android:paddingRight="24dp"
+                                          android:text="Stop Detection" />
 
-                <TextView
-                              android:layout_width="match_parent"
-                              android:layout_height="wrap_content"
-                              android:layout_marginTop="28dp"
-                              android:text="Detection models"
-                              android:textColor="#FFFFFF"
-                              android:textSize="15sp"
-                              android:textStyle="bold" />
+                        <TextView
+                                          android:layout_width="match_parent"
+                                          android:layout_height="wrap_content"
+                                          android:layout_marginTop="28dp"
+                                          android:text="Detection models"
+                                          android:textColor="#FFFFFF"
+                                          android:textSize="15sp"
+                                          android:textStyle="bold" />
 
-                <CheckBox
-                              android:id="@+id/groundCheck"
-                              android:layout_width="match_parent"
-                              android:layout_height="wrap_content"
-                              android:layout_marginTop="4dp"
-                              android:checked="true"
-                              android:text="Ground model (COCO) - general objects"
-                              android:textColor="#DDDDDD"
-                              android:textSize="13sp" />
+                        <CheckBox
+                                          android:id="@+id/militaryCheck"
+                                          android:layout_width="match_parent"
+                                          android:layout_height="wrap_content"
+                                          android:layout_marginTop="4dp"
+                                          android:checked="true"
+                                          android:text="Military - armour, artillery, military transport"
+                                          android:textColor="#FFD200"
+                                          android:textSize="13sp" />
 
-                <CheckBox
-                              android:id="@+id/aerialCheck"
-                              android:layout_width="match_parent"
-                              android:layout_height="wrap_content"
-                              android:checked="true"
-                              android:text="Aerial model (VisDrone) - top-down views"
-                              android:textColor="#DDDDDD"
-                              android:textSize="13sp" />
+                        <CheckBox
+                                          android:id="@+id/aerialCheck"
+                                          android:layout_width="match_parent"
+                                          android:layout_height="wrap_content"
+                                          android:checked="true"
+                                          android:text="Aerial (VisDrone) - personnel and vehicles from above"
+                                          android:textColor="#DDDDDD"
+                                          android:textSize="13sp" />
 
-                <CheckBox
-                              android:id="@+id/allClassesCheck"
-                              android:layout_width="match_parent"
-                              android:layout_height="wrap_content"
-                              android:checked="false"
-                              android:text="Show all object classes, not just people and vehicles"
-                              android:textColor="#DDDDDD"
-                              android:textSize="13sp" />
+                        <CheckBox
+                                          android:id="@+id/groundCheck"
+                                          android:layout_width="match_parent"
+                                          android:layout_height="wrap_content"
+                                          android:checked="true"
+                                          android:text="Ground (COCO) - general objects, close range"
+                                          android:textColor="#DDDDDD"
+                                          android:textSize="13sp" />
 
-                <TextView
-                              android:id="@+id/thresholdLabel"
-                              android:layout_width="match_parent"
-                              android:layout_height="wrap_content"
-                              android:layout_marginTop="24dp"
-                              android:text="Only show detections above 60% confidence"
-                              android:textColor="#FFFFFF"
-                              android:textSize="13sp" />
+                        <CheckBox
+                                          android:id="@+id/allClassesCheck"
+                                          android:layout_width="match_parent"
+                                          android:layout_height="wrap_content"
+                                          android:checked="false"
+                                          android:text="Show all object classes, not just threats"
+                                          android:textColor="#DDDDDD"
+                                          android:textSize="13sp" />
 
-                <SeekBar
-                              android:id="@+id/thresholdSeek"
-                              android:layout_width="match_parent"
-                              android:layout_height="wrap_content"
-                              android:layout_marginTop="4dp"
-                              android:max="45"
-                              android:progress="10" />
+                        <TextView
+                                          android:id="@+id/thresholdLabel"
+                                          android:layout_width="match_parent"
+                                          android:layout_height="wrap_content"
+                                          android:layout_marginTop="24dp"
+                                          android:text="Only show detections above 60% confidence"
+                                          android:textColor="#FFFFFF"
+                                          android:textSize="13sp" />
 
-                <TextView
-                              android:layout_width="match_parent"
-                              android:layout_height="wrap_content"
-                              android:text="Lower this if nothing is detected. Takes effect immediately."
-                              android:textColor="#777777"
-                              android:textSize="11sp" />
+                        <SeekBar
+                                          android:id="@+id/thresholdSeek"
+                                          android:layout_width="match_parent"
+                                          android:layout_height="wrap_content"
+                                          android:layout_marginTop="4dp"
+                                          android:max="45"
+                                          android:progress="10" />
 
-                <TextView
-                              android:id="@+id/statusText"
-                              android:layout_width="match_parent"
-                              android:layout_height="wrap_content"
-                              android:layout_marginTop="22dp"
-                              android:gravity="center"
-                              android:text="Tap Start, grant the two permissions, then switch to your drone app."
-                              android:textColor="#66FF99"
-                              android:textSize="13sp" />
+                        <TextView
+                                          android:layout_width="match_parent"
+                                          android:layout_height="wrap_content"
+                                          android:text="Lower this if nothing is detected. Takes effect immediately."
+                                          android:textColor="#777777"
+                                          android:textSize="11sp" />
 
-                <TextView
-                              android:layout_width="match_parent"
-                              android:layout_height="wrap_content"
-                              android:layout_marginTop="20dp"
-                              android:gravity="center"
-                              android:text="Red = person   Yellow = vehicle   Blue = other"
-                              android:textColor="#666666"
-                              android:textSize="11sp" />
+                        <TextView
+                                          android:id="@+id/statusText"
+                                          android:layout_width="match_parent"
+                                          android:layout_height="wrap_content"
+                                          android:layout_marginTop="22dp"
+                                          android:gravity="center"
+                                          android:text="Tap Start, grant the two permissions, then switch to your drone app."
+                                          android:textColor="#66FF99"
+                                          android:textSize="13sp" />
 
-                <TextView
-                              android:layout_width="match_parent"
-                              android:layout_height="wrap_content"
-                              android:gravity="center"
-                              android:text="Solid box = ground model    Dashed box = aerial model"
-                              android:textColor="#666666"
-                              android:textSize="11sp" />
+                        <TextView
+                                          android:layout_width="match_parent"
+                                          android:layout_height="wrap_content"
+                                          android:layout_marginTop="20dp"
+                                          android:gravity="center"
+                                          android:text="Orange = military   Red = person   Yellow = vehicle   Blue = other"
+                                          android:textColor="#666666"
+                                          android:textSize="11sp" />
 
-      </LinearLayout>
+                        <TextView
+                                          android:layout_width="match_parent"
+                                          android:layout_height="wrap_content"
+                                          android:gravity="center"
+                                          android:text="Dotted = military   Dashed = aerial   Solid = ground"
+                                          android:textColor="#666666"
+                                          android:textSize="11sp" />
+
+                        <TextView
+                                          android:layout_width="match_parent"
+                                          android:layout_height="wrap_content"
+                                          android:layout_marginTop="10dp"
+                                          android:gravity="center"
+                                          android:text="Thin box with ? means too few pixels on target to classify."
+                                          android:textColor="#666666"
+                                          android:textSize="11sp" />
+
+          </LinearLayout>
 
 </ScrollView>
