@@ -74,7 +74,7 @@ class AerialDetector(
          init {
                   try {
                                val model = FileUtil.loadMappedFile(context, modelFile)
-                                           val options = Interpreter.Options().apply { setNumThreads(2) }
+                                           val options = Interpreter.Options().apply { setNumThreads(4) }
                                                        val interp = Interpreter(model, options)
 
                                                                    val inShape = interp.getInputTensor(0).shape()
