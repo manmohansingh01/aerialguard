@@ -49,9 +49,11 @@ class AerialDetector(
                                         * that are physically resolvable from drone altitude.
                                                  */
                                                          val MILITARY_LABELS = arrayOf(
-                                                                      "tank", "armoured-vehicle", "artillery",
-                                                                      "military-truck", "helicopter"
-                                                                  )
+            "cargo aircraft", "commercial aircraft", "drone", "fighter jet",
+            "fighter plane", "helicopter", "light aircraft", "missile",
+            "truck", "car", "tank", "bus", "van",
+            "cargo ship", "yacht", "cruise ship", "warship", "sailboat"
+        )
      }
 
          override var isAvailable = false
