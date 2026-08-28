@@ -26,6 +26,7 @@ import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import com.aerialguard.app.detector.AerialDetector
 import com.aerialguard.app.detector.CocoDetector
+import com.aerialguard.app.detector.DetectorSource
 import com.aerialguard.app.detector.DetectorStatus
 import com.aerialguard.app.detector.FrameAnalyzer
 import com.aerialguard.app.overlay.OverlayController
@@ -44,10 +45,7 @@ class ScreenCaptureService : Service() {
               const val EXTRA_RESULT_DATA = "extra_result_data"
               const val ACTION_STOP = "com.aerialguard.app.STOP"
 
-              // Two models over three tiles is roughly 300ms of work per frame, so
-              // the interval leaves the CPU room rather than queueing frames up.
               private const val PROCESS_INTERVAL_MS = 300L
-
               private const val CAPTURE_SCALE = 0.5f
      }
 
@@ -98,22 +96,30 @@ class ScreenCaptureService : Service() {
                       mediaProjection = projectionManager.getMediaProjection(resultCode, resultData)
                               mediaProjection?.registerCallback(projectionCallback, bgHandler)
 
-                                      // The ground model is the guaranteed baseline. The aerial model is
-                                              // additive: if it is missing or fails to load the app carries on with
-                                                      // the ground model alone and the HUD says so.
+                                      // The ground model is the guaranteed baseline. The aerial and military
+                                              // models are additive: if either is missing the app carries on with
+                                                      // whatever loaded, and the HUD says which.
                                                               val ground = CocoDetector(applicationContext)
                                                                       val aerial = AerialDetector(applicationContext)
+                                                                              val military = AerialDetector(
+                                                                                           applicationContext,
+                                                                                           AerialDetector.MILITARY_MODEL,
+                                                                                           AerialDetector.MILITARY_LABELS,
+                                                                                           DetectorSource.MILITARY
+                                                                                       )
 
-                                                                              DetectorStatus.groundOk = ground.isAvailable
+                                                                                      DetectorStatus.groundOk = ground.isAvailable
                       DetectorStatus.aerialOk = aerial.isAvailable
+                      DetectorStatus.militaryOk = military.isAvailable
                       DetectorStatus.note = when {
-                                   ground.isAvailable && aerial.isAvailable -> "both models loaded"
-                                   ground.isAvailable -> "aerial: " + aerial.statusNote
-                                   aerial.isAvailable -> "ground: " + ground.statusNote
-                                   else -> "no model loaded"
+                                   ground.isAvailable && aerial.isAvailable && military.isAvailable -> "all models loaded"
+                                   !aerial.isAvailable && !military.isAvailable -> "aerial + military models not installed"
+                                   !aerial.isAvailable -> "aerial: " + aerial.statusNote
+                                   !military.isAvailable -> "military: " + military.statusNote
+                                   else -> "ground: " + ground.statusNote
                       }
 
-                              frameAnalyzer = FrameAnalyzer(listOf(ground, aerial))
+                              frameAnalyzer = FrameAnalyzer(listOf(ground, aerial, military))
 
                                       setupVirtualDisplay()
                                               overlayController.show()
