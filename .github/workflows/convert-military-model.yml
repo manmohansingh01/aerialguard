@@ -1,0 +1,17 @@
+{
+"name": "Convert Military Model",
+"on": { "workflow_dispatch": {} },
+"jobs": {
+"convert": {
+"runs-on": "ubuntu-latest",
+"steps": [
+{ "name": "Set up Python", "uses": "actions/setup-python@v5", "with": { "python-version": "3.11" } },
+{ "name": "Install exporter", "run": "python -m pip install --upgrade pip && pip install ultralytics tensorflow onnx onnxslim onnx_graphsurgeon sng4onnx onnx2tf" },
+{ "name": "Download defence weights", "run": "curl -L --fail -o defence.pt https://huggingface.co/spencercdz/YOLOv8m_defence/resolve/main/yolov8m_defence.pt && ls -la defence.pt" },
+{ "name": "Print classes and export", "run": "python -c \"from ultralytics import YOLO; m = YOLO('defence.pt'); print('CLASS_ORDER:', m.names); m.export(format='tflite', imgsz=448)\"" },
+{ "name": "Collect the model", "run": "python -c \"import glob,os,shutil; c=sorted(glob.glob('**/*.tflite',recursive=True),key=os.path.getsize,reverse=True); print('found:',c); os.makedirs('out',exist_ok=True); shutil.copy(c[0],'out/military.tflite'); print('MODEL_BYTES:',os.path.getsize('out/military.tflite'))\"" },
+{ "name": "Upload model artifact", "uses": "actions/upload-artifact@v4", "with": { "name": "military-model", "path": "out/military.tflite" } }
+]
+}
+}
+}
