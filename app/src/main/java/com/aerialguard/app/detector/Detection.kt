@@ -75,7 +75,7 @@ object DetectorStatus {
       @Volatile var militaryCount = 0
       @Volatile var gatedCount = 0
       @Volatile var lastMs = 0L
-      const val VERSION = "4.0"
+      const val VERSION = "4.1"
 }
 
 /**
@@ -90,14 +90,22 @@ object DetectorStatus {
 
                private val vehicleLabels = setOf(
                          "car", "truck", "bus", "motorcycle", "bicycle", "train", "boat",
-                         "van", "motor", "tricycle", "awning-tricycle"
+                         "van", "motor", "tricycle", "awning-tricycle",
+        "cargo ship", "yacht", "cruise ship", "sailboat"
                      )
 
                    private val militaryLabels = setOf(
-                             "tank", "armoured-vehicle", "armored-vehicle", "apc",
-                             "artillery", "howitzer", "rocket-launcher",
-                             "military-truck", "military-vehicle", "helicopter"
-                         )
+        "tank", "armoured-vehicle", "armored-vehicle", "apc",
+        "artillery", "howitzer", "rocket-launcher",
+        "military-truck", "military-vehicle",
+        "helicopter", "drone", "fighter jet", "fighter plane", "missile",
+        "warship"
+    )
+
+    private val airborneLabels = setOf(
+        "helicopter", "drone", "fighter jet", "fighter plane", "missile",
+        "cargo aircraft", "commercial aircraft", "light aircraft"
+    )
 
                        fun categorise(label: String): ThreatCategory {
                                  val key = label.trim().lowercase()
@@ -126,8 +134,14 @@ object DetectorStatus {
                                                                                  if (boxHeightPx >= DetectorConfig.minPixelsForFineClass) {
                                                                                                return Triple(label, category, false)
                                                                                  }
-                                                                                         return when (category) {
-                                                                                                       ThreatCategory.MILITARY -> Triple("vehicle?", ThreatCategory.VEHICLE, true)
+                                                                                         val key = label.trim().lowercase()
+        return when (category) {
+                                                                                                       ThreatCategory.MILITARY ->
+                if (airborneLabels.contains(key)) {
+                    Triple("aircraft?", ThreatCategory.MILITARY, true)
+                } else {
+                    Triple("vehicle?", ThreatCategory.VEHICLE, true)
+                }
                                                                                                                    ThreatCategory.HUMAN -> Triple("person", ThreatCategory.HUMAN, label != "person")
                                                                                                                                else -> Triple(label, category, false)
                                                                                          }
