@@ -1,52 +1,17 @@
-# Converts the VisDrone-trained YOLOv8n model to TensorFlow Lite and publishes
-# it as a downloadable artifact called aerial-model.
-#
-# Run it from the Actions tab: "Convert Aerial Model" -> Run workflow.
-# Then download the artifact and add aerial.tflite to app/src/main/assets/
-# so the next APK build ships with the aerial detector active.
-
-name: Convert Aerial Model
-
-on:
-  workflow_dispatch:
-
-  jobs:
-    convert:
-        runs-on: ubuntu-latest
-            steps:
-                  - name: Set up Python
-                          uses: actions/setup-python@v5
-                                  with:
-                                            python-version: '3.11'
-
-                                                  - name: Install exporter
-                                                          run: |
-                                                                    python -m pip install --upgrade pip
-                                                                              pip install ultralytics tensorflow onnx onnxslim onnx_graphsurgeon sng4onnx onnx2tf
-
-                                                                                    - name: Download VisDrone weights
-                                                                                            run: |
-                                                                                                      curl -L --fail -o best.pt https://huggingface.co/mshamrai/yolov8n-visdrone/resolve/main/best.pt
-                                                                                                                ls -la best.pt
-                                                                                                                
-                                                                                                                      - name: Export to TFLite
-                                                                                                                              run: |
-                                                                                                                                        python -c "from ultralytics import YOLO; m = YOLO('best.pt'); print('classes:', m.names); m.export(format='tflite', imgsz=448)"
-                                                                                                                                        
-                                                                                                                                              - name: Collect the model
-                                                                                                                                                      run: |
-                                                                                                                                                                echo 'tflite files produced:'
-                                                                                                                                                                          find . -name '*.tflite' -printf '%s bytes  %p\n' | sort -rn
-                                                                                                                                                                                    mkdir -p out
-                                                                                                                                                                                              SRC=$(find . -name '*float32.tflite' | head -n1)
-                                                                                                                                                                                                        if [ -z "$SRC" ]; then SRC=$(find . -name '*.tflite' | head -n1); fi
-                                                                                                                                                                                                                  if [ -z "$SRC" ]; then echo 'no tflite produced'; exit 1; fi
-                                                                                                                                                                                                                            cp "$SRC" out/aerial.tflite
-                                                                                                                                                                                                                                      ls -la out/aerial.tflite
-                                                                                                                                                                                                                                      
-                                                                                                                                                                                                                                            - name: Upload model artifact
-                                                                                                                                                                                                                                                    uses: actions/upload-artifact@v4
-                                                                                                                                                                                                                                                            with:
-                                                                                                                                                                                                                                                                      name: aerial-model
-                                                                                                                                                                                                                                                                                path: out/aerial.tflite
-                                                                                                                                                                                                                                                                                
+{
+"name": "Convert Aerial Model",
+"on": { "workflow_dispatch": {} },
+"jobs": {
+"convert": {
+"runs-on": "ubuntu-latest",
+"steps": [
+{ "name": "Set up Python", "uses": "actions/setup-python@v5", "with": { "python-version": "3.11" } },
+{ "name": "Install exporter", "run": "python -m pip install --upgrade pip && pip install ultralytics tensorflow onnx onnxslim onnx_graphsurgeon sng4onnx onnx2tf" },
+{ "name": "Download VisDrone weights", "run": "curl -L --fail -o best.pt https://huggingface.co/mshamrai/yolov8n-visdrone/resolve/main/best.pt && ls -la best.pt" },
+{ "name": "Export to TFLite", "run": "python -c \"from ultralytics import YOLO; m = YOLO('best.pt'); print('classes:', m.names); m.export(format='tflite', imgsz=448)\"" },
+{ "name": "Collect the model", "run": "find . -name '*.tflite'; mkdir -p out; cp $(find . -name '*float32.tflite' | head -n1) out/aerial.tflite; ls -la out/" },
+{ "name": "Upload model artifact", "uses": "actions/upload-artifact@v4", "with": { "name": "aerial-model", "path": "out/aerial.tflite" } }
+]
+}
+}
+}
