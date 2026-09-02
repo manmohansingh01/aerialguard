@@ -67,6 +67,7 @@ class AerialDetector(
      private var channels = 0
      private var anchors = 0
      private var channelsFirst = true
+    private var nchw = false
 
      private var inputBuffer: ByteBuffer? = null
      private var pixels = IntArray(0)
@@ -79,9 +80,15 @@ class AerialDetector(
 
                                                                    val inShape = interp.getInputTensor(0).shape()
                                                                                if (inShape.size == 4) {
-                                                                                                inputH = inShape[1]
-                                                                                                inputW = inShape[2]
-                                                                               }
+                if (inShape[1] == 3 && inShape[3] != 3) {
+                    nchw = true
+                    inputH = inShape[2]
+                    inputW = inShape[3]
+                } else {
+                    inputH = inShape[1]
+                    inputW = inShape[2]
+                }
+            }
 
                                                                                            val outShape = interp.getOutputTensor(0).shape()
                                                                                                        if (outShape.size != 3) throw IllegalStateException("output rank " + outShape.size)
@@ -102,6 +109,10 @@ class AerialDetector(
                                                                                interpreter = interp
                                isAvailable = true
                                statusNote = "ok"
+            publishDebug(
+                "in " + inShape.joinToString("x") + " out " + outShape.joinToString("x") +
+                    (if (nchw) " nchw" else "")
+            )
                   } catch (e: Exception) {
                                interpreter = null
                                isAvailable = false
@@ -122,12 +133,21 @@ class AerialDetector(
                                               buffer.rewind()
                                                       val n = inputW * inputH
                       scaled.getPixels(pixels, 0, inputW, 0, 0, inputW, inputH)
-                              for (i in 0 until n) {
-                                           val p = pixels[i]
-                                           buffer.putFloat(((p shr 16) and 0xFF) / 255f)
-                                                       buffer.putFloat(((p shr 8) and 0xFF) / 255f)
-                                                                   buffer.putFloat((p and 0xFF) / 255f)
-                              }
+                              if (nchw) {
+            for (plane in 0 until 3) {
+                val shift = 16 - plane * 8
+                for (i in 0 until n) {
+                    buffer.putFloat(((pixels[i] shr shift) and 0xFF) / 255f)
+                }
+            }
+        } else {
+            for (i in 0 until n) {
+                val p = pixels[i]
+                buffer.putFloat(((p shr 16) and 0xFF) / 255f)
+                buffer.putFloat(((p shr 8) and 0xFF) / 255f)
+                buffer.putFloat((p and 0xFF) / 255f)
+            }
+        }
                                       buffer.rewind()
                                               if (scaled !== tile) scaled.recycle()
 
@@ -141,12 +161,15 @@ class AerialDetector(
                                                                            interp.run(buffer, output)
                                                               } catch (e: Exception) {
                                                                            statusNote = "inference failed"
+            publishDebug("inference failed: " + (e.message ?: "?"))
                                                                            return emptyList()
                                                               }
 
                                                                       val numClasses = channels - 4
                       val candidates = ArrayList<RawDetection>()
                               var maxCoord = 0f
+        var topScore = 0f
+        var topClass = -1
 
                       for (a in 0 until anchors) {
                                    var bestScore = 0f
@@ -155,7 +178,11 @@ class AerialDetector(
                                                     val s = if (channelsFirst) output[0][4 + c][a] else output[0][a][4 + c]
                                                     if (s > bestScore) { bestScore = s; bestClass = c }
                                    }
-                                               if (bestClass < 0 || bestScore < SCORE_FLOOR) continue
+                                               if (bestScore > topScore) {
+                topScore = bestScore
+                topClass = bestClass
+            }
+            if (bestClass < 0 || bestScore < SCORE_FLOOR) continue
 
                                    val cx = if (channelsFirst) output[0][0][a] else output[0][a][0]
                                    val cy = if (channelsFirst) output[0][1][a] else output[0][a][1]
@@ -171,7 +198,13 @@ class AerialDetector(
                                                                 )
                       }
 
-                              if (candidates.isEmpty()) return emptyList()
+                              publishDebug(
+            "raw " + candidates.size +
+                " top " + (topScore * 100).toInt() + "% " +
+                (if (topClass >= 0 && topClass < labels.size) labels[topClass] else "-")
+        )
+
+        if (candidates.isEmpty()) return emptyList()
 
                                       val scaleUp = if (maxCoord <= 1.5f) tile.width.toFloat() else tile.width.toFloat() / inputW
                       val mapped = candidates.map {
@@ -215,8 +248,16 @@ class AerialDetector(
                                   return if (union <= 0f) 0f else overlap / union
                          }
 
-                             override fun close() {
-                                      interpreter?.close()
+                             private fun publishDebug(s: String) {
+        when (source) {
+            DetectorSource.MILITARY -> DetectorStatus.militaryDebug = s
+            DetectorSource.AERIAL -> DetectorStatus.aerialDebug = s
+            else -> {}
+        }
+    }
+
+    override fun close() {
+        interpreter?.close()
                                               interpreter = null
                              }
 }
