@@ -84,8 +84,14 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
                                                                                                              emptyList()
                                                                                         }
 
-                                                                                                        for (r in raw) {
-                                                                                                                             if (r.score < minConfidence) continue
+                                                                                                        val threshold = if (detector.source == DetectorSource.MILITARY) {
+                    minConfidence * DetectorConfig.militaryConfidenceScale
+                } else {
+                    minConfidence
+                }
+
+                for (r in raw) {
+                    if (r.score < threshold) continue
                                                                                                          
                                                                                                                              val rawCategory = Taxonomy.categorise(r.label)
                                                                                                                                                  if (!showAll && rawCategory == ThreatCategory.OTHER) continue
@@ -94,9 +100,11 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
                                                                                                                              val boxH = r.box.bottom - r.box.top
                                                                                                                              if (boxW <= 0f || boxH <= 0f) continue
                                                                                                          
-                                                                                                                             val aspect = maxOf(boxW / boxH, boxH / boxW)
-                                                                                                                                                 if (aspect > MAX_ASPECT) continue
-                                                                                                                             if ((boxW * boxH) / tileArea > MAX_AREA_FRACTION) continue
+                                                                                                                             if (!showAll) {
+                        val aspect = maxOf(boxW / boxH, boxH / boxW)
+                        if (aspect > MAX_ASPECT) continue
+                        if ((boxW * boxH) / tileArea > MAX_AREA_FRACTION) continue
+                    }
                                                                                                          
                                                                                                                              val mapped = RectF(
                                                                                                                                                       r.box.left * backScale + srcRect.left,
