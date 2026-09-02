@@ -111,16 +111,28 @@ class OverlayBoxView(context: Context) : View(context) {
                                           }
                                                   canvas.drawText(line, 24f, 88f, statusPaint)
 
+        // Raw model telemetry. "mil 0" alone cannot tell a blind model apart
+        // from one whose output a threshold is eating, so print what the
+        // model actually returned, before any filtering.
+        if (DetectorStatus.militaryDebug.isNotEmpty()) {
+            statusPaint.color = Color.rgb(255, 200, 120)
+            canvas.drawText("M: " + DetectorStatus.militaryDebug, 24f, 124f, statusPaint)
+        }
+        if (DetectorStatus.aerialDebug.isNotEmpty()) {
+            statusPaint.color = Color.rgb(150, 210, 255)
+            canvas.drawText("A: " + DetectorStatus.aerialDebug, 24f, 158f, statusPaint)
+        }
+
                                                           if (DetectorStatus.gatedCount > 0) {
                                                                        statusPaint.color = Color.rgb(255, 122, 26)
                                                                                    canvas.drawText(
                                                                                                     DetectorStatus.gatedCount.toString() +
                                                                                                          " too small to classify - showing coarse label only",
-                                                                                                    24f, 124f, statusPaint
+                24f, 192f, statusPaint
                                                                                                 )
                                                           } else if (!DetectorStatus.militaryOk || !DetectorStatus.aerialOk) {
                                                                        statusPaint.color = Color.rgb(170, 190, 210)
-                                                                                   canvas.drawText(DetectorStatus.note, 24f, 124f, statusPaint)
+                                                                                   canvas.drawText(DetectorStatus.note, 24f, 192f, statusPaint)
                                                           }
                                  }
 
