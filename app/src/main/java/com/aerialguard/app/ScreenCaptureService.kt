@@ -59,6 +59,16 @@ class ScreenCaptureService : Service() {
      private var bgThread: HandlerThread? = null
      private var bgHandler: Handler? = null
      private var lastProcessTime = 0L
+    private var captureW = 0
+    private var captureH = 0
+
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) {}
+        override fun onDisplayRemoved(displayId: Int) {}
+        override fun onDisplayChanged(displayId: Int) {
+            bgHandler?.post { recreateIfSizeChanged() }
+        }
+    }
 
      private val projectionCallback = object : MediaProjection.Callback() {
               override fun onStop() {
@@ -122,7 +132,11 @@ class ScreenCaptureService : Service() {
                               frameAnalyzer = FrameAnalyzer(listOf(ground, aerial, military))
 
                                       setupVirtualDisplay()
-                                              overlayController.show()
+
+        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        displayManager.registerDisplayListener(displayListener, bgHandler)
+
+        overlayController.show()
 
                                                       return START_STICKY
              }
@@ -136,6 +150,8 @@ class ScreenCaptureService : Service() {
                                           val captureWidth = (metrics.widthPixels * CAPTURE_SCALE).toInt().coerceAtLeast(2)
                                                   val captureHeight = (metrics.heightPixels * CAPTURE_SCALE).toInt().coerceAtLeast(2)
                                                           val density = metrics.densityDpi
+        captureW = captureWidth
+        captureH = captureHeight
 
                           val reader = ImageReader.newInstance(captureWidth, captureHeight, PixelFormat.RGBA_8888, 2)
                                   reader.setOnImageAvailableListener({ imgReader ->
@@ -158,7 +174,29 @@ class ScreenCaptureService : Service() {
                                    )
                  }
 
-                     private fun processImage(image: Image) {
+                     /**
+     * The VirtualDisplay is fixed at the size it was created with. Rotating
+     * the phone changes the real display size, and without this the capture
+     * keeps the old shape: the system letterboxes the rotated screen into it,
+     * the models see a squashed image, and every box lands in the wrong place.
+     */
+    private fun recreateIfSizeChanged() {
+        val metrics = DisplayMetrics()
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        @Suppress("DEPRECATION")
+        windowManager.defaultDisplay.getRealMetrics(metrics)
+        val w = (metrics.widthPixels * CAPTURE_SCALE).toInt().coerceAtLeast(2)
+        val h = (metrics.heightPixels * CAPTURE_SCALE).toInt().coerceAtLeast(2)
+        if (w == captureW && h == captureH) return
+
+        virtualDisplay?.release()
+        imageReader?.close()
+        virtualDisplay = null
+        imageReader = null
+        setupVirtualDisplay()
+    }
+
+    private fun processImage(image: Image) {
                               try {
                                            val bitmap = imageToBitmap(image)
                                                        val detections = frameAnalyzer?.analyze(bitmap) ?: emptyList()
@@ -220,7 +258,12 @@ class ScreenCaptureService : Service() {
 
                                      override fun onDestroy() {
                                               super.onDestroy()
-                                                      virtualDisplay?.release()
+        try {
+            (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
+                .unregisterDisplayListener(displayListener)
+        } catch (e: Exception) {
+        }
+        virtualDisplay?.release()
                                                               imageReader?.close()
                                                                       mediaProjection?.unregisterCallback(projectionCallback)
                                                                               mediaProjection?.stop()
