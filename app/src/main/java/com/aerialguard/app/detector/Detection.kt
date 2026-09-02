@@ -62,6 +62,13 @@ object DetectorConfig {
                                               * coarse class ("person", "vehicle?") and declines to say more.
                                                    */
       @Volatile var minPixelsForFineClass = 48f
+
+    /**
+     * The military model scores lower than the COCO model on the same scene,
+     * so holding it to the same bar hides everything it finds. Its effective
+     * floor is minConfidence * this.
+     */
+    @Volatile var militaryConfidenceScale = 0.55f
 }
 
 /** Live state, read by the overlay HUD. */
@@ -75,7 +82,11 @@ object DetectorStatus {
       @Volatile var militaryCount = 0
       @Volatile var gatedCount = 0
       @Volatile var lastMs = 0L
-      const val VERSION = "4.1"
+
+    /** Raw model telemetry, drawn on the HUD so a silent model can be diagnosed. */
+    @Volatile var militaryDebug = ""
+    @Volatile var aerialDebug = ""
+      const val VERSION = "4.2"
 }
 
 /**
