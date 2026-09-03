@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.os.SystemClock
+import kotlin.math.ceil
 
 /**
  * Runs every enabled detector over one frame and merges the results.
@@ -32,6 +33,12 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
         private const val MAX_AREA_FRACTION = 0.5f
         private const val CROSS_MODEL_IOU = 0.60f
         private const val SAME_MODEL_IOU = 0.55f
+
+        /** Compute budget: crops per frame, per tiled model. */
+        private const val MAX_TILES = 8
+
+        /** Fraction each crop overlaps its neighbour, so seams do not cut targets. */
+        private const val TILE_OVERLAP = 0.18f
     }
 
     private val tileBitmap = Bitmap.createBitmap(TILE_PX, TILE_PX, Bitmap.Config.ARGB_8888)
@@ -102,22 +109,12 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
 
         val tiledModels = active.filter { it.source != DetectorSource.MILITARY }
         if (tiledModels.isNotEmpty()) {
-            val shortSide = minOf(width, height)
-            val longSide = maxOf(width, height)
-            val landscape = width >= height
+            val tiles = planTiles(width, height)
 
-            val tileCount = maxOf(1, (longSide + shortSide - 1) / shortSide)
-            val step = if (tileCount == 1) 0 else (longSide - shortSide) / (tileCount - 1)
-            val backScale = shortSide.toFloat() / TILE_PX
-            val tileAreaInFrame = (shortSide * shortSide).toFloat()
-
-            for (i in 0 until tileCount) {
-                val offset = if (tileCount == 1) 0 else i * step
-                val srcRect = if (landscape) {
-                    Rect(offset, 0, offset + shortSide, shortSide)
-                } else {
-                    Rect(0, offset, shortSide, offset + shortSide)
-                }
+            for (srcRect in tiles) {
+                val srcTile = srcRect.width()
+                val backScale = srcTile.toFloat() / TILE_PX
+                val tileAreaInFrame = (srcTile * srcRect.height()).toFloat()
 
                 tileCanvas.drawBitmap(bitmap, srcRect, destRect, scalePaint)
 
@@ -149,6 +146,41 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
         DetectorStatus.gatedCount = merged.count { it.gated }
         DetectorStatus.lastMs = SystemClock.elapsedRealtime() - startedAt
         return merged
+    }
+
+    private fun planTiles(width: Int, height: Int): List<Rect> {
+        var srcTile = TILE_PX
+        var tiles = layoutTiles(width, height, srcTile)
+        val limit = maxOf(width, height)
+        while (tiles.size > MAX_TILES && srcTile < limit) {
+            srcTile = (srcTile * 1.2f).toInt().coerceAtLeast(srcTile + 1)
+            tiles = layoutTiles(width, height, srcTile)
+        }
+        return tiles
+    }
+
+    private fun layoutTiles(width: Int, height: Int, requested: Int): List<Rect> {
+        val tile = minOf(requested, minOf(width, height))
+        val stride = maxOf(1, (tile * (1f - TILE_OVERLAP)).toInt())
+        val xs = axisOffsets(width, tile, stride)
+        val ys = axisOffsets(height, tile, stride)
+        val out = ArrayList<Rect>(xs.size * ys.size)
+        for (y in ys) {
+            for (x in xs) {
+                out.add(Rect(x, y, x + tile, y + tile))
+            }
+        }
+        return out
+    }
+
+    private fun axisOffsets(total: Int, tile: Int, stride: Int): List<Int> {
+        if (tile >= total) return listOf(0)
+        val steps = ceil((total - tile).toFloat() / stride).toInt() + 1
+        val out = ArrayList<Int>(steps)
+        for (i in 0 until steps) {
+            out.add(minOf(i * stride, total - tile))
+        }
+        return out
     }
 
     private fun consider(
