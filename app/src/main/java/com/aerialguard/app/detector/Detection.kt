@@ -68,7 +68,7 @@ object DetectorConfig {
      * so holding it to the same bar hides everything it finds. Its effective
      * floor is minConfidence * this.
      */
-    @Volatile var militaryConfidenceScale = 0.55f
+    @Volatile var militaryConfidenceScale = 1.0f
 }
 
 /** Live state, read by the overlay HUD. */
@@ -86,7 +86,7 @@ object DetectorStatus {
     /** Raw model telemetry, drawn on the HUD so a silent model can be diagnosed. */
     @Volatile var militaryDebug = ""
     @Volatile var aerialDebug = ""
-      const val VERSION = "4.4"
+      const val VERSION = "4.5"
 }
 
 /**
@@ -100,7 +100,7 @@ object DetectorStatus {
            private val humanLabels = setOf("person", "pedestrian", "people", "soldier")
 
                private val vehicleLabels = setOf(
-                         "car", "truck", "bus", "motorcycle", "bicycle", "train", "boat",
+                         "car", "truck", "bus", "motorcycle", "bicycle", "boat",
                          "van", "motor", "tricycle", "awning-tricycle",
         "cargo ship", "yacht", "cruise ship", "sailboat"
                      )
