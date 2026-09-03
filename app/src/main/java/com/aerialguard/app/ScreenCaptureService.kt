@@ -46,7 +46,7 @@ class ScreenCaptureService : Service() {
               const val ACTION_STOP = "com.aerialguard.app.STOP"
 
               private const val PROCESS_INTERVAL_MS = 300L
-              private const val CAPTURE_SCALE = 0.5f
+              private const val CAPTURE_SCALE = 1.0f
      }
 
          private var mediaProjection: MediaProjection? = null
