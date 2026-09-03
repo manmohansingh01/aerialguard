@@ -31,8 +31,9 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
         private const val TILE_PX = 448
         private const val MAX_ASPECT = 4.0f
         private const val MAX_AREA_FRACTION = 0.5f
-        private const val CROSS_MODEL_IOU = 0.60f
-        private const val SAME_MODEL_IOU = 0.55f
+        private const val MERGE_IOU = 0.45f
+        private const val CONTAINED = 0.80f
+        private const val MAX_DETECTIONS = 15
 
         /** Compute budget: crops per frame, per tiled model. */
         private const val MAX_TILES = 8
@@ -224,22 +225,56 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
 
     private fun merge(items: List<Detection>): List<Detection> {
         if (items.size < 2) return items
+
+        // One box per object. Every detection competes with every other one,
+        // regardless of which model found it or what it was called -- matching
+        // on category was the bug: a tank found by the military model and the
+        // same tank called "train" by COCO have different categories, so both
+        // survived and you got two boxes on one object.
+        //
+        // Plain overlap is not enough either. Those two "train" boxes sat
+        // entirely inside the tank box yet scored only 0.38 IoU, so they need
+        // the containment test. Containment is skipped when either box is a
+        // person, because a person standing beside a vehicle is genuinely
+        // inside its box and is a separate object, not a duplicate.
         val sorted = items.sortedByDescending { it.confidence }
         val kept = ArrayList<Detection>()
         for (cand in sorted) {
+            if (kept.size >= MAX_DETECTIONS) break
             var duplicate = false
             for (k in kept) {
-                val overlap = iou(k.box, cand.box)
-                duplicate = if (k.source == cand.source) {
-                    k.label == cand.label && overlap > SAME_MODEL_IOU
-                } else {
-                    k.category == cand.category && overlap > CROSS_MODEL_IOU
+                if (iou(k.box, cand.box) > MERGE_IOU) {
+                    duplicate = true
+                    break
                 }
-                if (duplicate) break
+                val humanInvolved = k.category == ThreatCategory.HUMAN ||
+                    cand.category == ThreatCategory.HUMAN
+                if (!humanInvolved) {
+                    val inside = maxOf(
+                        containment(cand.box, k.box),
+                        containment(k.box, cand.box)
+                    )
+                    if (inside > CONTAINED) {
+                        duplicate = true
+                        break
+                    }
+                }
             }
             if (!duplicate) kept.add(cand)
         }
         return kept
+    }
+
+    /** Fraction of [inner] that lies inside [outer]. */
+    private fun containment(inner: RectF, outer: RectF): Float {
+        val left = maxOf(inner.left, outer.left)
+        val top = maxOf(inner.top, outer.top)
+        val right = minOf(inner.right, outer.right)
+        val bottom = minOf(inner.bottom, outer.bottom)
+        if (right <= left || bottom <= top) return 0f
+        val innerArea = (inner.right - inner.left) * (inner.bottom - inner.top)
+        if (innerArea <= 0f) return 0f
+        return ((right - left) * (bottom - top)) / innerArea
     }
 
     private fun iou(a: RectF, b: RectF): Float {
