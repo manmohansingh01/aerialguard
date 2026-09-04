@@ -86,7 +86,7 @@ object DetectorStatus {
     /** Raw model telemetry, drawn on the HUD so a silent model can be diagnosed. */
     @Volatile var militaryDebug = ""
     @Volatile var aerialDebug = ""
-      const val VERSION = "4.5"
+      const val VERSION = "4.6"
 }
 
 /**
