@@ -69,8 +69,8 @@
                                           android:id="@+id/aerialCheck"
                                           android:layout_width="match_parent"
                                           android:layout_height="wrap_content"
-                                          android:checked="true"
-                                          android:text="Aerial (VisDrone) - personnel and vehicles from above"
+                                          android:checked="false"
+                                          android:text="Aerial (VisDrone) - only for real top-down drone footage"
                                           android:textColor="#DDDDDD"
                                           android:textSize="13sp" />
 
