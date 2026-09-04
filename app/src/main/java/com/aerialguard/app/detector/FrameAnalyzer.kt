@@ -35,6 +35,21 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
         private const val CONTAINED = 0.80f
         private const val MAX_DETECTIONS = 15
 
+        /**
+         * Minimum luminance variance inside a box for it to be believed.
+         * Measured on a real capture: blank page 45, Google logo 2881, actual
+         * camera footage 6347. Below this there are no edges and no contrast,
+         * so nothing is physically there and a reported vehicle is the model
+         * hallucinating on flat pixels.
+         */
+        private const val MIN_VARIANCE = 120f
+
+        /** Boxes below this height are the size the ghost detections came in at. */
+        private const val SMALL_BOX_PX = 48f
+
+        /** How much of a small box must sit on our own label for it to be ours. */
+        private const val CHIP_CONTAIN = 0.65f
+
         /** Compute budget: crops per frame, per tiled model. */
         private const val MAX_TILES = 8
 
@@ -48,6 +63,20 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
     private val frameCanvas = Canvas(frameBitmap)
     private val scalePaint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val destRect = Rect(0, 0, TILE_PX, TILE_PX)
+
+    /** Pixels of whichever 448px view is currently being analysed. */
+    private val pixelBuf = IntArray(TILE_PX * TILE_PX)
+
+    /**
+     * Where this overlay drew its own label chips last frame.
+     *
+     * MediaProjection mirrors the whole display, and that includes our own
+     * overlay window. A solid coloured chip with text looks a lot like a small
+     * vehicle from above, so the labels drawn last frame come back as this
+     * frame detections, which draw new labels, which feed back again. The
+     * ghosts sit still on a blank page because they sustain themselves.
+     */
+    @Volatile private var lastChips: List<RectF> = emptyList()
 
     fun analyze(bitmap: Bitmap): List<Detection> {
         val startedAt = SystemClock.elapsedRealtime()
@@ -68,6 +97,7 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
             DetectorStatus.aerialCount = 0
             DetectorStatus.militaryCount = 0
             DetectorStatus.gatedCount = 0
+            lastChips = emptyList()
             return emptyList()
         }
 
@@ -85,6 +115,7 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
             frameCanvas.drawBitmap(
                 bitmap, null, RectF(padX, padY, padX + drawW, padY + drawH), scalePaint
             )
+            frameBitmap.getPixels(pixelBuf, 0, TILE_PX, 0, 0, TILE_PX, TILE_PX)
 
             val frameArea = (width * height).toFloat()
             for (detector in wholeFrameModels) {
@@ -94,6 +125,7 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
                     emptyList()
                 }
                 for (r in raw) {
+                    if (!hasTexture(r.box)) continue
                     val mapped = RectF(
                         (r.box.left - padX) / scale,
                         (r.box.top - padY) / scale,
@@ -118,6 +150,7 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
                 val tileAreaInFrame = (srcTile * srcRect.height()).toFloat()
 
                 tileCanvas.drawBitmap(bitmap, srcRect, destRect, scalePaint)
+                tileBitmap.getPixels(pixelBuf, 0, TILE_PX, 0, 0, TILE_PX, TILE_PX)
 
                 for (detector in tiledModels) {
                     val raw = try {
@@ -126,6 +159,7 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
                         emptyList()
                     }
                     for (r in raw) {
+                        if (!hasTexture(r.box)) continue
                         val mapped = RectF(
                             r.box.left * backScale + srcRect.left,
                             r.box.top * backScale + srcRect.top,
@@ -140,6 +174,7 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
         }
 
         val merged = merge(collected)
+        lastChips = merged.map { chipRectFor(it) }
 
         DetectorStatus.groundCount = merged.count { it.source == DetectorSource.GROUND }
         DetectorStatus.aerialCount = merged.count { it.source == DetectorSource.AERIAL }
@@ -217,6 +252,14 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
             ) {
                 return null
             }
+
+            // Reject small boxes sitting on the label chips drawn last frame:
+            // that is this overlay detecting itself, not the scene.
+            if (boxH < SMALL_BOX_PX) {
+                for (chip in lastChips) {
+                    if (containment(mapped, chip) > CHIP_CONTAIN) return null
+                }
+            }
         }
 
         val gate = Taxonomy.applyResolutionGate(r.label, rawCategory, boxH)
@@ -263,6 +306,51 @@ class FrameAnalyzer(private val detectors: List<Detector>) {
             if (!duplicate) kept.add(cand)
         }
         return kept
+    }
+
+    /**
+     * True when the pixels under [box] carry enough contrast to hold an object
+     * at all. Samples a coarse grid rather than every pixel, which is plenty to
+     * tell flat colour apart from a real scene.
+     */
+    private fun hasTexture(box: RectF): Boolean {
+        val left = box.left.toInt().coerceIn(0, TILE_PX - 2)
+        val top = box.top.toInt().coerceIn(0, TILE_PX - 2)
+        val right = box.right.toInt().coerceIn(left + 2, TILE_PX)
+        val bottom = box.bottom.toInt().coerceIn(top + 2, TILE_PX)
+
+        val step = maxOf(1, minOf(right - left, bottom - top) / 12)
+        var n = 0
+        var sum = 0.0
+        var sumSq = 0.0
+
+        var y = top
+        while (y < bottom) {
+            val rowBase = y * TILE_PX
+            var x = left
+            while (x < right) {
+                val p = pixelBuf[rowBase + x]
+                val lum = 0.299 * ((p shr 16) and 0xFF) +
+                    0.587 * ((p shr 8) and 0xFF) +
+                    0.114 * (p and 0xFF)
+                sum += lum
+                sumSq += lum * lum
+                n++
+                x += step
+            }
+            y += step
+        }
+
+        if (n < 9) return true
+        val mean = sum / n
+        val variance = (sumSq / n) - mean * mean
+        return variance > MIN_VARIANCE
+    }
+
+    /** Where the overlay will draw this label chip, in frame pixels. */
+    private fun chipRectFor(d: Detection): RectF {
+        val estWidth = (d.label.length + 12) * 19f
+        return RectF(d.box.left - 8f, d.box.top - 60f, d.box.left + estWidth, d.box.top + 8f)
     }
 
     /** Fraction of [inner] that lies inside [outer]. */
