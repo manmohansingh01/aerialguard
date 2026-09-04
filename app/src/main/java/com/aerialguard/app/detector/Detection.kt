@@ -47,7 +47,19 @@ interface Detector {
 object DetectorConfig {
       @Volatile var minConfidence = 0.60f
       @Volatile var groundEnabled = true
-      @Volatile var aerialEnabled = true
+      /**
+     * Off by default.
+     *
+     * The VisDrone model is sound in isolation: given flat or random input it
+     * returns zero detections, and its tensor shapes match the decoder. But it
+     * was trained only on aerial urban photography, so it has no concept of
+     * "none of the above". Shown a phone UI, a web page or a video thumbnail
+     * it labels half-familiar rectangles as cars at 60 percent. COCO does not
+     * do this because it was trained on diverse everyday imagery.
+     *
+     * Turn it on for genuine top-down drone footage, where it earns its place.
+     */
+    @Volatile var aerialEnabled = false
       @Volatile var militaryEnabled = true
       @Volatile var showAllClasses = false
 
@@ -86,7 +98,7 @@ object DetectorStatus {
     /** Raw model telemetry, drawn on the HUD so a silent model can be diagnosed. */
     @Volatile var militaryDebug = ""
     @Volatile var aerialDebug = ""
-      const val VERSION = "4.6"
+      const val VERSION = "4.7"
 }
 
 /**
