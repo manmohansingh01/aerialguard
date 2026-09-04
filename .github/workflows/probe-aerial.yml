@@ -1,0 +1,49 @@
+name: Probe Aerial Model
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/probe-aerial.yml
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install runtime
+        run: pip install --quiet numpy tensorflow-cpu==2.16.1
+
+      - name: Probe
+        run: |
+          python - <<PY
+          import numpy as np, tensorflow as tf
+          it = tf.lite.Interpreter(model_path="app/src/main/assets/aerial.tflite")
+          it.allocate_tensors()
+          inp = it.get_input_details()[0]
+          out = it.get_output_details()[0]
+          print("PROBE INPUT", list(inp["shape"]), inp["dtype"].__name__)
+          print("PROBE OUTPUT", list(out["shape"]), out["dtype"].__name__)
+          shape = list(inp["shape"])
+          def run(img):
+              it.set_tensor(inp["index"], img.astype(inp["dtype"]))
+              it.invoke()
+              return it.get_tensor(out["index"])[0]
+          def split(a):
+              if a.shape[0] < a.shape[1]:
+                  return a[:4, :], a[4:, :]
+              return a[:, :4].T, a[:, 4:].T
+          flat = np.full(shape, 0.5, dtype=np.float32)
+          b, c = split(run(flat))
+          print("PROBE FLAT  maxscore", round(float(c.max()), 4), "over0.25", int((c.max(axis=0) > 0.25).sum()))
+          print("PROBE FLAT  boxrange", round(float(b.min()), 3), round(float(b.max()), 3))
+          rng = np.random.default_rng(0)
+          b2, c2 = split(run(rng.random(shape).astype(np.float32)))
+          print("PROBE NOISE maxscore", round(float(c2.max()), 4), "over0.25", int((c2.max(axis=0) > 0.25).sum()))
+          print("PROBE CLASSES", c.shape[0])
+          PY
